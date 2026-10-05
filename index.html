@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Upaznet Helpdesk – SOP & Template Chat</title>
-<link rel="icon" type="image/x-icon" href="img/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -41,7 +40,7 @@
   /* ---------- Navbar ---------- */
   .navbar { position: sticky; top: 0; z-index: 10; background: var(--ink); color: #fff; }
   .navbar-inner {
-    max-width: 1500px; margin: 0 auto;
+    max-width: 1040px; margin: 0 auto;
     display: flex; align-items: center; gap: 24px;
     padding: 0 20px; min-height: 60px;
   }
@@ -63,7 +62,7 @@
   .nav-links a[aria-current="page"] { color: #fff; border-bottom-color: #6FD17F; }
 
   /* ---------- Layout ---------- */
-  main { max-width: 1500px; margin: 0 auto; padding: 36px 20px 80px; }
+  main { max-width: 1040px; margin: 0 auto; padding: 36px 20px 80px; }
   .page[hidden] { display: none; }
   .page-head { margin-bottom: 24px; max-width: 62ch; }
   .page-head h1 { margin: 0 0 6px; font-size: 2rem; line-height: 1.2; font-weight: 800; color: var(--ink); }
@@ -205,31 +204,29 @@
   }
   .hint { margin-top: 24px; font-size: .9rem; color: var(--muted); max-width: 70ch; }
 
-  /* ---------- Template Chat: 2 kolom (kiri-kanan) per shift ---------- */
-  .agents { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
-  .agent { min-width: 0; }
-  .agent-bar {
-    /* position: sticky; top: 68px; z-index: 5; */
+  /* ---------- Template Chat: 1 helpdesk per shift, 3 kolom ---------- */
+  .desk-bar {
+    position: sticky; top: 68px; z-index: 5;
     background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--brand);
-    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px;
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; max-width: 560px;
     box-shadow: 0 8px 10px -8px rgba(20, 48, 106, .35);
   }
-  .agent:nth-child(2) .agent-bar { border-top-color: var(--ink); }
-  .agent-title { margin: 0 0 8px; font-size: .85rem; font-weight: 800; color: var(--ink); text-transform: uppercase; letter-spacing: .04em; }
-  .agent-fields { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
   .field label { display: block; margin-bottom: 2px; font-size: .78rem; font-weight: 700; color: var(--muted); }
-  .field input, .field select {
+  .field input {
     width: 100%; font: inherit; padding: 8px 10px;
     border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text);
   }
   .field input.invalid { border-color: var(--no); box-shadow: 0 0 0 3px var(--no-tint); }
-  .agent-list { display: grid; gap: 12px; }
+  .field input[readonly] { background: var(--brand-tint); color: var(--brand-dark); font-weight: 700; cursor: default; border-color: transparent; }
+  .field input[readonly]:focus { outline: none; }
+  .tpl-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .copy-state.err { color: var(--no); }
 
   footer { text-align: center; padding: 24px 20px 40px; color: var(--muted); font-size: .85rem; }
 
   @media (max-width: 900px) {
-    .agents { grid-template-columns: 1fr; }
+    .tpl-grid.cols3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
   @media (max-width: 760px) {
     .pamphlets { grid-template-columns: 1fr; }
@@ -242,7 +239,8 @@
     .brand span.name { display: none; }
     .nav-links a { padding: 0 12px; }
     .page-head h1 { font-size: 1.6rem; }
-    .tpl-grid { grid-template-columns: 1fr; }
+    .tpl-grid, .tpl-grid.cols3 { grid-template-columns: 1fr; }
+    .desk-bar { grid-template-columns: minmax(0, 1fr) 130px; }
     .tab { padding: 10px 14px; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
@@ -344,8 +342,8 @@
    ===================================================== */
 
 // ---- Tab 1: Template Chat
-// Salam pembuka ("Selamat [Shift] Kak, Saya [Nama] dari tim Helpdesk upaznet.") otomatis ditambahkan di depan
-// setiap template, sesuai nama dan shift yang diisi di kolom. Isi "text" cukup tulis setelah salamnya.
+// Salam pembuka ("Selamat [Pagi/Siang/Sore/Malam] Kak, Saya [Nama] dari tim Helpdesk upaznet.") otomatis ditambahkan di depan
+// setiap template, sesuai nama yang diisi dan jam saat ini. Isi "text" cukup tulis setelah salamnya.
 // greet: false = template tidak memakai salam pembuka (pesan lanjutan di tengah chat dan penutup).
 const TEMPLATES = [
   // --- Umum
@@ -395,7 +393,7 @@ const TEMPLATES = [
     text: "Mohon maaf,setelah kami lakukan pemeriksaan,untuk kendala lemot diakibatkan saat ini penggunaan sudah melewati batas maksimal atau over penggunaan,📉\n\nSilahkan untuk melakukan penggantian kata sandi terlebih dahulu untuk mengurangi jumlah pengguna nya🙏🏻🙏🏻" },
 
   // --- Jaringan (sisi pemancar / jalur kabel)
-  { title: "Pemadaman listrik pemancar", cat: "Gangguan",
+  { title: "Pemadaman listrik pemancar", cat: "Jaringan",
     text: "Mohon maaf atas ketidaknyamanannya, kami infomasikan saat ini jaringan terkendala dikarenakan sedang ada pemadaman listrik dari pihak PLN di pemancar kami.\n\nmohon ditunggu hingga listrik sudah normal kembali,Demikian informasi kami sampaikan, terima kasih.🙏🏻🙏🏻" },
   { title: "Backbone / ODP / ODC", cat: "Jaringan",
     text: "Mohon maaf terkait kendala yang di alami terpantau saat ini sedang ada perbaikan di sisi jalur kabel kami.\n\nTerkait hal tersebut akan kami infokan kembali jika sudah selesai perbaikan dan koneksi sudah normal kembali,Terimakasih 🙏🏻🙏🏻" },
@@ -457,14 +455,12 @@ const BROADCAST = [
 
 // ---- Tab 3: Komplain Upstream
 const UPSTREAM = [
-  { title: "KOMPLAIN LINK ARAH KE OMADATA", cat: "FiberStar",
-    text: "Selamat pagi/siang/malam Rekan,\n\nMohon informasinya apakah saat ini sedang terjadi gangguan pada metro yang mengarah ke Omadata?\nKarena kami monitoring terpantau koneksi down\n\nID Pelanggan CRT2601018111-ICI-JAB-DIMENSI_JARINGAN_BERSINAR-OMDT-20Gbps\nPT DIMENSI JARINGAN BERSINAR" },
-  { title: "KOMPLAIN LINK ARAH KE POP BLJ MADIUN", cat: "FiberStar",
-    text: "Selamat pagi/siang/malam Rekan,\n\nMohon informasinya apakah saat ini sedang terjadi gangguan pada metro yang mengarah ke POP Madiun?\nKarena kami monitoring terpantau koneksi down\n\nID Pelanggan CRT2606019576-JAB-DIMENSI_JARINGAN_BERSINAR_MADIUN-CYB1-700Mbps\nPT DIMENSI JARINGAN BERSINAR" },
-  { title: "KOMPLAIN LINK CYBER JKT", cat: "FiberStar",
-    text: "Selamat pagi/siang/malam Rekan,\n\nMohon informasinya apakah saat ini sedang terjadi gangguan pada metro yang mengarah ke CYBER?\nKarena kami monitoring terpantau koneksi down\n\nID Pelanggan CRT2606016132-JAB-DIMENSI_JARINGAN_KENAYAN_TULUNGAGUNG_2-CYB1-3Gbps\nPT DIMENSI JARINGAN BERSINAR" },
-  { title: "KOMPLAIN DATACENTER OMADATA", cat: "OMADATA",
-    text: "Selamat pagi/siang/malam Rekan,\n\nMohon informasinya apakah saat ini sedang terjadi gangguan / maintenance di sisi OMADATA?\n\nTerpantau saat ini perangkat kami yang berada di MMR mengalami down" },
+  { title: "Laporan link down", cat: "Laporan",
+    text: "Selamat [Pagi/Siang/Sore/Malam], NOC [Nama Upstream].\n\nKami ingin melaporkan gangguan pada layanan berikut:\n- Pelanggan: Upaznet ([Nama PT])\n- ID layanan / sirkit: [ID Layanan]\n- Bandwidth: [Kapasitas]\n- Lokasi / POP: [Lokasi]\n- Waktu mulai gangguan: [Tanggal Jam] WIB\n- Gejala: link down / LOS\n- Hasil pengecekan di sisi kami: [Hasil Pengecekan]\n\nMohon bantuan pengecekan dan estimasi penanganannya. Terima kasih.\n\n[Nama Agen] - Tim Helpdesk Upaznet" },
+  { title: "Laporan latency tinggi / packet loss", cat: "Laporan",
+    text: "Selamat [Pagi/Siang/Sore/Malam], NOC [Nama Upstream].\n\nKami mendeteksi kualitas koneksi menurun pada layanan berikut:\n- ID layanan / sirkit: [ID Layanan]\n- Waktu mulai: [Tanggal Jam] WIB\n- Gejala: latency tinggi / packet loss\n- Hasil ping ke [IP Tujuan]: [Hasil Ping]\n- Hasil traceroute: [Hasil Traceroute]\n- Trafik saat ini: [Trafik]\n\nMohon dicek dari sisi upstream dan dikabari hasilnya. Terima kasih.\n\n[Nama Agen] - Tim Helpdesk Upaznet" },
+  { title: "Follow up tiket", cat: "Follow up",
+    text: "Selamat [Pagi/Siang/Sore/Malam], NOC [Nama Upstream].\n\nKami mengikuti perkembangan tiket [Nomor Tiket Upstream] untuk layanan [ID Layanan] yang dilaporkan pukul [Jam Lapor] WIB. Mohon informasi status terbaru dan estimasi pemulihannya.\n\nTerima kasih.\n\n[Nama Agen] - Tim Helpdesk Upaznet" },
   { title: "Eskalasi tiket belum ada respons", cat: "Follow up",
     text: "Selamat [Pagi/Siang/Sore/Malam], NOC [Nama Upstream].\n\nTiket [Nomor Tiket Upstream] untuk layanan [ID Layanan] sudah berjalan [Durasi] tanpa pembaruan dan berdampak pada [Jumlah] pelanggan kami. Mohon dieskalasi ke tim terkait dan dikabari perkembangannya.\n\nTerima kasih.\n\n[Nama Agen] - Tim Helpdesk Upaznet" },
   { title: "Konfirmasi layanan pulih", cat: "Penutupan",
@@ -484,16 +480,16 @@ const REKENING = [
 ];
 
 // ---- Daftar tab di halaman Template
-// kind: "agents" = template chat 2 kolom (nama + shift), "letter" = pesan resmi, "custom" = isi sendiri di HTML (panel-gpon, berisi aplikasi Config Generator)
+// kind: "agents" = template chat 3 kolom (nama + ucapan waktu otomatis), "letter" = pesan resmi, "custom" = isi sendiri di HTML (panel-gpon, berisi aplikasi Config Generator)
 const TABS = [
   { id: "chat", label: "Template Chat", kind: "agents", items: TEMPLATES,
-    desc: "Isi nama dan pilih shift di masing-masing kolom. Salam pembuka otomatis menyesuaikan dan ikut tersalin.",
-    hint: "Kolom kiri dan kanan dipakai bergantian oleh dua helpdesk dalam satu shift. Nama dan shift tersimpan di browser ini, jadi tidak hilang saat halaman dimuat ulang. Pesan lanjutan (Tanya trouble, Konfirmasi, dan Penutup) tidak memakai salam pembuka." },
+    desc: "Isi nama helpdesk dulu. Ucapan waktu (pagi, siang, sore, malam) otomatis mengikuti jam di perangkat ini dan ikut tersalin.",
+    hint: "Ucapan otomatis: Pagi 00.00-10.59, Siang 11.00-14.59, Sore 15.00-17.59, Malam 18.00-23.59. Nama dan ucapan tersimpan di browser ini. Pesan lanjutan (Tanya trouble, Konfirmasi, dan Penutup) tidak memakai salam pembuka." },
   { id: "broadcast", label: "Broadcast Gangguan", kind: "letter", items: BROADCAST,
     desc: "Pengumuman ke pelanggan saat ada gangguan, estimasi perbaikan, atau pekerjaan selesai.",
     hint: "Judul berakhiran \"Story WA\" dipakai untuk status WhatsApp, sedangkan \"Broadcast\" dikirim langsung ke pelanggan." },
   { id: "upstream", label: "Komplain Upstream", kind: "letter", items: UPSTREAM,
-    desc: "Fiberstar grup wa After Sales FS x Dimensi Jaringan Bersinar ( Upaz Nett ) | OMADATA grup wa OMADATA - UPAZNET",
+    desc: "Format laporan ke NOC provider upstream saat ada gangguan di sisi mereka.",
     hint: "Lampirkan hasil ping, traceroute, atau tangkapan layar monitoring bila ada, supaya upstream bisa memeriksa lebih cepat." },
   { id: "rekening", label: "Rekening", kind: "letter", items: REKENING,
     desc: "Nomor rekening pembayaran sesuai wilayah pelanggan.",
@@ -565,88 +561,78 @@ function activateTab(id) {
   });
 }
 
-/* ---------- Template Chat: 2 kolom (kiri-kanan), nama + shift per helpdesk ---------- */
-const SHIFTS = ["Pagi", "Siang", "Malam"];
-const AGENT_KEY = "upaznet-helpdesk-agents";
+/* ---------- Template Chat: 1 helpdesk per shift, ucapan waktu otomatis ---------- */
+const NAME_KEY = "upaznet-helpdesk-name";
 
-function defaultShift() {
-  const h = new Date().getHours();
-  return h >= 5 && h < 11 ? "Pagi" : h >= 11 && h < 18 ? "Siang" : "Malam";
-}
-function loadAgents() {
-  let saved = [];
-  try { saved = JSON.parse(localStorage.getItem(AGENT_KEY)) || []; } catch (_) {}
-  return [0, 1].map((i) => {
-    const a = saved[i] || {};
-    return {
-      name: typeof a.name === "string" ? a.name : "",
-      shift: SHIFTS.includes(a.shift) ? a.shift : defaultShift()
-    };
-  });
-}
-const agents = loadAgents();
-function saveAgents() {
-  try { localStorage.setItem(AGENT_KEY, JSON.stringify(agents)); } catch (_) {}
+// Pagi 00.00-10.59, Siang 11.00-14.59, Sore 15.00-17.59, Malam 18.00-23.59 (jam perangkat)
+function dayPart(d = new Date()) {
+  const h = d.getHours();
+  if (h < 11) return "Pagi";
+  if (h < 15) return "Siang";
+  if (h < 18) return "Sore";
+  return "Malam";
 }
 
-function greeting(a) {
-  const name = a.name.trim() || "[Nama Helpdesk]";
-  return "Selamat " + a.shift + " Kak👋\nSaya " + name + " dari tim Helpdesk upaznet.";
+const desk = { name: "" };
+try { desk.name = localStorage.getItem(NAME_KEY) || ""; } catch (_) {}
+function saveName() { try { localStorage.setItem(NAME_KEY, desk.name); } catch (_) {} }
+
+function greeting() {
+  const name = desk.name.trim() || "[Nama Helpdesk]";
+  return "Selamat " + dayPart() + " Kak👋\nSaya " + name + " dari tim Helpdesk upaznet.";
 }
-function fullText(t, a) {
+function fullText(t) {
   if (t.greet === false) return t.text;
-  return t.text ? greeting(a) + "\n\n" + t.text : greeting(a);
+  return t.text ? greeting() + "\n\n" + t.text : greeting();
 }
 
-function buildAgents() {
-  const wrap = el("div", "agents");
-  agents.forEach((a, i) => {
-    const col = el("section", "agent");
-    col.setAttribute("aria-label", "Helpdesk " + (i + 1));
+function buildDesk() {
+  const bar = el("div", "desk-bar");
 
-    const bar = el("div", "agent-bar");
-    bar.appendChild(el("div", "agent-title", "Helpdesk " + (i + 1)));
-    const fields = el("div", "agent-fields");
-
-    const f1 = el("div", "field");
-    const l1 = el("label", null, "Nama helpdesk"); l1.htmlFor = "agent-name-" + i;
-    const input = el("input"); input.id = "agent-name-" + i;
-    input.type = "text"; input.placeholder = "Ketik nama"; input.autocomplete = "off";
-    input.maxLength = 40; input.value = a.name;
-    input.addEventListener("input", () => {
-      a.name = input.value; input.classList.remove("invalid");
-      saveAgents(); renderAgentList(i);
-    });
-    f1.append(l1, input);
-
-    const f2 = el("div", "field");
-    const l2 = el("label", null, "Shift"); l2.htmlFor = "agent-shift-" + i;
-    const sel = el("select"); sel.id = "agent-shift-" + i;
-    SHIFTS.forEach((sh) => { const o = el("option", null, sh); o.value = sh; sel.appendChild(o); });
-    sel.value = a.shift;
-    sel.addEventListener("change", () => { a.shift = sel.value; saveAgents(); renderAgentList(i); });
-    f2.append(l2, sel);
-
-    fields.append(f1, f2);
-    bar.appendChild(fields);
-    const list = el("div", "agent-list"); list.id = "agent-list-" + i;
-    col.append(bar, list);
-    wrap.appendChild(col);
+  const f1 = el("div", "field");
+  const l1 = el("label", null, "Nama helpdesk"); l1.htmlFor = "desk-name";
+  const input = el("input"); input.id = "desk-name";
+  input.type = "text"; input.placeholder = "Ketik nama"; input.autocomplete = "off";
+  input.maxLength = 40; input.value = desk.name;
+  input.addEventListener("input", () => {
+    desk.name = input.value; input.classList.remove("invalid");
+    saveName(); renderDesk();
   });
-  return wrap;
+  f1.append(l1, input);
+
+  const f2 = el("div", "field");
+  const l2 = el("label", null, "Ucapan (otomatis)"); l2.htmlFor = "desk-part";
+  const part = el("input"); part.id = "desk-part";
+  part.type = "text"; part.readOnly = true; part.value = dayPart();
+  part.setAttribute("aria-readonly", "true");
+  f2.append(l2, part);
+
+  bar.append(f1, f2);
+
+  const grid = el("div", "tpl-grid cols3"); grid.id = "grid-chat";
+  return { bar, grid };
 }
 
-function renderAgents() { agents.forEach((_, i) => renderAgentList(i)); }
+// Ucapan mengikuti jam: cek berkala supaya tampilan ikut berganti saat jam berubah
+let lastPart = dayPart();
+function syncDayPart() {
+  const now = dayPart();
+  if (now === lastPart) return;
+  lastPart = now;
+  const f = $("#desk-part");
+  if (f) f.value = now;
+  renderDesk();
+}
+setInterval(syncDayPart, 20000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) syncDayPart(); });
 
-function renderAgentList(i) {
+function renderDesk() {
   const tab = TABS.find((t) => t.kind === "agents");
-  const a = agents[i];
-  const list = $("#agent-list-" + i);
-  list.innerHTML = "";
+  const grid = $("#grid-chat");
+  grid.innerHTML = "";
   const cat = tabState[tab.id].cat;
 
   tab.items.filter((t) => cat === "Semua" || t.cat === cat).forEach((t) => {
-    const text = fullText(t, a);
     const card = el("article", "tpl");
     const head = el("div", "tpl-head");
     head.append(el("h2", "tpl-title", t.title), el("span", "tpl-cat", t.cat));
@@ -655,7 +641,7 @@ function renderAgentList(i) {
     body.setAttribute("role", "button");
     body.tabIndex = 0;
     body.setAttribute("aria-label", "Salin template: " + t.title);
-    fillBubble(body, text);
+    fillBubble(body, fullText(t));
 
     const state = el("div", "copy-state", "Klik teks untuk menyalin");
     state.setAttribute("aria-live", "polite");
@@ -670,17 +656,17 @@ function renderAgentList(i) {
       // jika sedang menyeleksi sebagian teks, jangan timpa dengan salin semua
       if (String(window.getSelection()).trim()) return;
       clearTimeout(timer);
-      if (t.greet !== false && !a.name.trim()) {
+      if (t.greet !== false && !desk.name.trim()) {
         // sesuai SOP: nama wajib dicantumkan
         state.textContent = "Isi nama helpdesk dulu";
         state.classList.add("err");
-        const input = $("#agent-name-" + i);
+        const input = $("#desk-name");
         input.classList.add("invalid");
         input.focus();
         timer = setTimeout(reset, 2200);
         return;
       }
-      await copyText(text);
+      await copyText(fullText(t)); // dihitung ulang saat klik, jadi ucapan selalu sesuai jam sekarang
       body.classList.add("copied");
       state.textContent = "✓ Tersalin";
       state.classList.remove("err"); state.classList.add("done");
@@ -692,7 +678,7 @@ function renderAgentList(i) {
     });
 
     card.append(head, body, state);
-    list.appendChild(card);
+    grid.appendChild(card);
   });
 }
 
@@ -732,13 +718,13 @@ function buildTabs() {
     chips.setAttribute("role", "group"); chips.setAttribute("aria-label", "Filter kategori");
     chips.style.marginBottom = "20px";
 
-    let grid;
     if (tab.kind === "agents") {
-      grid = buildAgents();
+      const d = buildDesk();
+      p.append(d.bar, chips, d.grid, el("p", "hint", tab.hint));
     } else {
-      grid = el("div", "tpl-grid"); grid.id = "grid-" + tab.id;
+      const grid = el("div", "tpl-grid"); grid.id = "grid-" + tab.id;
+      p.append(chips, grid, el("p", "hint", tab.hint));
     }
-    p.append(chips, grid, el("p", "hint", tab.hint));
     panels.appendChild(p);
 
     buildChips(tab);
@@ -781,7 +767,7 @@ async function copyText(text) {
 }
 
 function renderTab(tab) {
-  if (tab.kind === "agents") { renderAgents(); return; }
+  if (tab.kind === "agents") { renderDesk(); return; }
   const grid = $("#grid-" + tab.id);
   grid.innerHTML = "";
   const st = tabState[tab.id];
