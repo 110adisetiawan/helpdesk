@@ -337,7 +337,10 @@
 
 <script>
 /* =====================================================
-   DATA – edit bagian ini untuk mengubah isi template
+   DATA CADANGAN – isi template sekarang diambil dari Firebase
+   (lihat script type="module" di bagian bawah). Array di sini
+   hanya dipakai kalau Firebase belum diisi atau gagal dimuat,
+   dan sekaligus jadi sumber data untuk seedTemplates().
    Bagian dalam tanda [ ] otomatis diberi warna kuning
    ===================================================== */
 
@@ -815,6 +818,84 @@ function renderTab(tab) {
 /* ---------- Inisialisasi ---------- */
 buildTabs();
 route();
+</script>
+
+<!-- =====================================================
+     FIREBASE (Firestore) – template diambil dari database.
+     Koleksi "templates", satu dokumen = satu template:
+       tab   : "chat" | "broadcast" | "upstream" | "rekening"
+       title : string
+       cat   : string (kategori / chip filter)
+       text  : string (boleh kosong, mis. "Perkenalan")
+       greet : false  (opsional, khusus tab "chat": tanpa salam pembuka)
+       order : number (urutan tampil, kecil → atas)
+     ===================================================== -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getFirestore, collection, onSnapshot, writeBatch, doc }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// TODO: ganti dengan config project kamu (Firebase Console → Project settings → Your apps → Web app)
+const firebaseConfig = {
+  apiKey: "AIzaSyDn_Lrk7DAjTllzRvbGt_Ny-nu0UdDzKG8",
+  authDomain: "helpdesk-superapp.firebaseapp.com",
+  projectId: "helpdesk-superapp",
+  storageBucket: "helpdesk-superapp.firebasestorage.app",
+  messagingSenderId: "534239093951",
+  appId: "1:534239093951:web:f2fea02c998596284c520a",
+  measurementId: "G-Q3SC2HXY0M"
+};
+
+const COLLECTION = "templates";
+
+if (String(firebaseConfig.apiKey).startsWith("ISI_")) {
+  console.info("[Firebase] Config belum diisi, memakai data bawaan di index.html.");
+} else {
+  const db = getFirestore(initializeApp(firebaseConfig));
+  const defaults = {};                       // salinan data bawaan, untuk seedTemplates()
+  TABS.forEach((t) => { if (t.items) defaults[t.id] = t.items.slice(); });
+
+  // Realtime: setiap perubahan di Firestore langsung tampil tanpa reload
+  onSnapshot(collection(db, COLLECTION), (snap) => {
+    const byTab = {};
+    snap.forEach((d) => {
+      const x = d.data();
+      if (!x || !x.tab || typeof x.title !== "string" || typeof x.text !== "string") return;
+      (byTab[x.tab] = byTab[x.tab] || []).push({
+        title: x.title,
+        cat: x.cat || "Umum",
+        text: x.text,
+        ...(x.greet === false ? { greet: false } : {}),
+        _order: Number.isFinite(x.order) ? x.order : 9999
+      });
+    });
+    TABS.forEach((tab) => {
+      if (!tab.items || !byTab[tab.id]) return;      // tab tanpa data di Firestore tetap pakai data bawaan
+      tab.items = byTab[tab.id].sort((a, b) => a._order - b._order);
+      const cats = new Set(tab.items.map((i) => i.cat));
+      if (tabState[tab.id].cat !== "Semua" && !cats.has(tabState[tab.id].cat)) tabState[tab.id].cat = "Semua";
+      buildChips(tab);
+      renderTab(tab);
+    });
+  }, (err) => console.warn("[Firebase] Gagal memuat template, memakai data bawaan:", err));
+
+  // Sekali jalan: unggah data bawaan ke Firestore. Buka Console browser lalu ketik: seedTemplates()
+  // ID dokumen tetap (mis. chat-001) jadi aman dijalankan ulang, tidak membuat duplikat.
+  window.seedTemplates = async () => {
+    const batch = writeBatch(db);
+    let n = 0;
+    Object.entries(defaults).forEach(([tabId, items]) => {
+      items.forEach((it, i) => {
+        const data = { tab: tabId, title: it.title, cat: it.cat, text: it.text, order: i + 1 };
+        if (it.greet === false) data.greet = false;
+        batch.set(doc(db, COLLECTION, tabId + "-" + String(i + 1).padStart(3, "0")), data);
+        n++;
+      });
+    });
+    await batch.commit();
+    console.log("[Firebase] " + n + " template terunggah.");
+  };
+}
 </script>
 </body>
 </html>
