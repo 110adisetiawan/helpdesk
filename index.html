@@ -206,7 +206,7 @@
 
   /* ---------- Template Chat: 1 helpdesk per shift, 3 kolom ---------- */
   .desk-bar {
-    top: 68px; z-index: 5;
+    position: top: 68px; z-index: 5;
     background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--brand);
     border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
     display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: 12px; max-width: 560px;
@@ -222,6 +222,42 @@
   .field input[readonly]:focus { outline: none; }
   .tpl-grid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .copy-state.err { color: var(--no); }
+
+  /* ---------- Admin ---------- */
+  [hidden] { display: none !important; }
+  .field textarea {
+    width: 100%; font: inherit; padding: 8px 10px; resize: vertical;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text);
+  }
+  .field .note { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
+  .admin-card {
+    background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--brand);
+    border-radius: var(--radius); padding: 20px; max-width: 420px; display: grid; gap: 14px;
+  }
+  .admin-card h2 { margin: 0; font-size: 1.1rem; color: var(--ink); }
+  .form-error { margin: 0; min-height: 1.3em; font-size: .88rem; font-weight: 600; color: var(--no); }
+  .admin-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .admin-user { color: var(--muted); font-size: .92rem; }
+  .admin-list { display: grid; gap: 10px; }
+  .admin-row {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
+  }
+  .admin-title { font-weight: 700; }
+  .admin-meta { font-size: .8rem; color: var(--muted); }
+  .admin-snip { margin-top: 4px; font-size: .88rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn.sm { padding: 5px 12px; font-size: .85rem; }
+  .btn.danger { border-color: var(--no); color: var(--no); }
+  .btn.danger:hover { background: var(--no-tint); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  dialog.editor {
+    border: 0; border-radius: var(--radius); padding: 22px;
+    width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto;
+  }
+  dialog.editor::backdrop { background: rgba(10, 18, 36, .6); }
+  dialog.editor form { display: grid; gap: 14px; }
+  dialog.editor h2 { margin: 0; font-size: 1.15rem; color: var(--ink); }
+  .check { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: .92rem; }
 
   footer { text-align: center; padding: 24px 20px 40px; color: var(--muted); font-size: .85rem; }
 
@@ -242,6 +278,7 @@
     .tpl-grid, .tpl-grid.cols3 { grid-template-columns: 1fr; }
     .desk-bar { grid-template-columns: minmax(0, 1fr) 130px; }
     .tab { padding: 10px 14px; }
+    .admin-row { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
 </style>
@@ -259,6 +296,7 @@
     <div class="nav-links">
       <a href="#sop" data-nav="sop">SOP</a>
       <a href="#template" data-nav="template">Template Chat</a>
+      <a href="#admin" data-nav="admin">Admin</a>
     </div>
   </nav>
 </header>
@@ -325,6 +363,60 @@
         <p class="hint">Kalau tampilan di atas kosong atau tidak muncul, buka aplikasinya lewat tombol "Buka di tab baru".</p>
       </div>
     </div>
+  </section>
+  <!-- ===== HALAMAN ADMIN (login + kelola template) ===== -->
+  <section id="page-admin" class="page" aria-labelledby="h-admin" hidden>
+    <div class="page-head">
+      <h1 id="h-admin">Admin Template</h1>
+      <p>Masuk untuk menambah, mengubah, atau menghapus template. Perubahan langsung tampil di halaman Template Chat.</p>
+    </div>
+
+    <div id="admin-nofb" class="empty" hidden>Firebase belum dikonfigurasi. Isi <code>firebaseConfig</code> di bagian bawah file index.html dulu.</div>
+
+    <form id="login-form" class="admin-card" hidden novalidate>
+      <h2>Masuk</h2>
+      <div class="field"><label for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="login-pass">Password</label>
+        <input id="login-pass" type="password" autocomplete="current-password" required></div>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <button type="submit" class="btn solid" id="login-btn">Masuk</button>
+    </form>
+
+    <div id="admin-panel" hidden>
+      <div class="admin-top">
+        <span class="admin-user">Masuk sebagai <strong id="admin-user"></strong></span>
+        <button type="button" class="btn sm" id="btn-logout">Keluar</button>
+      </div>
+      <div class="tabs" id="admin-tabs" role="tablist" aria-label="Pilih tab template"></div>
+      <div class="toolbar">
+        <button type="button" class="btn solid" id="btn-add">+ Tambah template</button>
+        <button type="button" class="btn" id="btn-seed" hidden>Unggah data bawaan</button>
+      </div>
+      <div class="admin-list" id="admin-list"></div>
+    </div>
+
+    <dialog class="editor" id="editor" aria-labelledby="editor-title">
+      <form id="editor-form">
+        <h2 id="editor-title">Tambah template</h2>
+        <div class="field"><label for="ed-title">Judul</label>
+          <input id="ed-title" type="text" maxlength="80"></div>
+        <div class="field"><label for="ed-cat">Kategori</label>
+          <input id="ed-cat" type="text" maxlength="40" list="ed-cats" autocomplete="off">
+          <datalist id="ed-cats"></datalist></div>
+        <div class="field"><label for="ed-text">Isi pesan</label>
+          <textarea id="ed-text" rows="10"></textarea>
+          <p class="note">Bagian dalam kurung siku, misalnya [Nama Upstream], otomatis berwarna kuning.</p></div>
+        <label class="check" id="ed-greet-wrap"><input type="checkbox" id="ed-greet"> Pakai salam pembuka otomatis (Selamat Pagi Kak, Saya [Nama]...)</label>
+        <div class="field"><label for="ed-order">Urutan tampil (kecil = di atas)</label>
+          <input id="ed-order" type="number" min="1" step="1"></div>
+        <p id="ed-error" class="form-error" role="alert"></p>
+        <div class="actions">
+          <button type="submit" class="btn solid" id="ed-save">Simpan</button>
+          <button type="button" class="btn" id="ed-cancel">Batal</button>
+        </div>
+      </form>
+    </dialog>
   </section>
 </main>
 
@@ -517,9 +609,10 @@ function el(tag, cls, text) {
 /* ---------- Navigasi antarhalaman ---------- */
 function route() {
   const h = location.hash;
-  const page = h.startsWith("#template") ? "template" : "sop";
+  const page = h.startsWith("#template") ? "template" : h.startsWith("#admin") ? "admin" : "sop";
   $("#page-sop").hidden = page !== "sop";
   $("#page-template").hidden = page !== "template";
+  $("#page-admin").hidden = page !== "admin";
   document.querySelectorAll("[data-nav]").forEach((a) => {
     if (a.dataset.nav === page) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
@@ -531,7 +624,7 @@ function route() {
     activateTab(tabId);
   }
   const tab = TABS.find((t) => t.id === tabId);
-  document.title = (page === "sop" ? "SOP" : tab.label) + " – Upaznet Helpdesk";
+  document.title = (page === "sop" ? "SOP" : page === "admin" ? "Admin" : tab.label) + " – Upaznet Helpdesk";
   if (currentPage !== page) window.scrollTo(0, 0);
   currentPage = page;
 }
@@ -821,7 +914,7 @@ route();
 </script>
 
 <!-- =====================================================
-     FIREBASE (Firestore) – template diambil dari database.
+     FIREBASE – Firestore (data template) + Authentication (login admin)
      Koleksi "templates", satu dokumen = satu template:
        tab   : "chat" | "broadcast" | "upstream" | "rekening"
        title : string
@@ -832,35 +925,43 @@ route();
      ===================================================== -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, writeBatch, doc }
+import { getFirestore, collection, onSnapshot, writeBatch, doc, setDoc, addDoc, deleteDoc }
   from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 // TODO: ganti dengan config project kamu (Firebase Console → Project settings → Your apps → Web app)
 const firebaseConfig = {
   apiKey: "AIzaSyDn_Lrk7DAjTllzRvbGt_Ny-nu0UdDzKG8",
   authDomain: "helpdesk-superapp.firebaseapp.com",
+  databaseURL: "https://helpdesk-superapp-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "helpdesk-superapp",
   storageBucket: "helpdesk-superapp.firebasestorage.app",
   messagingSenderId: "534239093951",
   appId: "1:534239093951:web:f2fea02c998596284c520a",
   measurementId: "G-Q3SC2HXY0M"
 };
-
 const COLLECTION = "templates";
 
 if (String(firebaseConfig.apiKey).startsWith("ISI_")) {
   console.info("[Firebase] Config belum diisi, memakai data bawaan di index.html.");
+  $("#admin-nofb").hidden = false;
 } else {
-  const db = getFirestore(initializeApp(firebaseConfig));
-  const defaults = {};                       // salinan data bawaan, untuk seedTemplates()
-  TABS.forEach((t) => { if (t.items) defaults[t.id] = t.items.slice(); });
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
 
-  // Realtime: setiap perubahan di Firestore langsung tampil tanpa reload
+  const defaults = {};                       // salinan data bawaan di file ini
+  TABS.forEach((t) => { if (t.items) defaults[t.id] = t.items.slice(); });
+  let allDocs = [];                          // semua dokumen Firestore (lengkap dengan id), dipakai halaman admin
+  let user = null;
+
+  /* ---------- Halaman publik: sinkron realtime ---------- */
   onSnapshot(collection(db, COLLECTION), (snap) => {
+    allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     const byTab = {};
-    snap.forEach((d) => {
-      const x = d.data();
-      if (!x || !x.tab || typeof x.title !== "string" || typeof x.text !== "string") return;
+    allDocs.forEach((x) => {
+      if (!x.tab || typeof x.title !== "string" || typeof x.text !== "string") return;
       (byTab[x.tab] = byTab[x.tab] || []).push({
         title: x.title,
         cat: x.cat || "Umum",
@@ -870,18 +971,166 @@ if (String(firebaseConfig.apiKey).startsWith("ISI_")) {
       });
     });
     TABS.forEach((tab) => {
-      if (!tab.items || !byTab[tab.id]) return;      // tab tanpa data di Firestore tetap pakai data bawaan
-      tab.items = byTab[tab.id].sort((a, b) => a._order - b._order);
+      if (!tab.items) return;
+      // tab tanpa dokumen di Firestore kembali memakai data bawaan
+      tab.items = byTab[tab.id] ? byTab[tab.id].sort((a, b) => a._order - b._order) : defaults[tab.id];
       const cats = new Set(tab.items.map((i) => i.cat));
       if (tabState[tab.id].cat !== "Semua" && !cats.has(tabState[tab.id].cat)) tabState[tab.id].cat = "Semua";
       buildChips(tab);
       renderTab(tab);
     });
+    if (user) renderAdmin();
   }, (err) => console.warn("[Firebase] Gagal memuat template, memakai data bawaan:", err));
 
-  // Sekali jalan: unggah data bawaan ke Firestore. Buka Console browser lalu ketik: seedTemplates()
-  // ID dokumen tetap (mis. chat-001) jadi aman dijalankan ulang, tidak membuat duplikat.
-  window.seedTemplates = async () => {
+  /* ---------- Admin: login ---------- */
+  const authMsg = (e) => {
+    const c = (e && e.code) || "";
+    if (["auth/invalid-credential", "auth/wrong-password", "auth/user-not-found", "auth/invalid-email"].includes(c)) return "Email atau password salah.";
+    if (c === "auth/too-many-requests") return "Terlalu banyak percobaan. Coba lagi beberapa menit lagi.";
+    if (c === "auth/network-request-failed") return "Koneksi bermasalah. Periksa internet kamu.";
+    return "Gagal masuk (" + (c || "unknown") + ").";
+  };
+  const writeMsg = (e) => (e && e.code === "permission-denied")
+    ? "Tidak punya izin. Pastikan email kamu terdaftar di Rules Firestore."
+    : "Gagal menyimpan: " + ((e && e.message) || e);
+
+  onAuthStateChanged(auth, (u) => {
+    user = u;
+    $("#login-form").hidden = !!u;
+    $("#admin-panel").hidden = !u;
+    $("#admin-user").textContent = u ? u.email : "";
+    if (u) { buildAdminTabs(); renderAdmin(); }
+  });
+
+  $("#login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = $("#login-email").value.trim();
+    const pass = $("#login-pass").value;
+    const err = $("#login-error");
+    err.textContent = "";
+    if (!email || !pass) { err.textContent = "Isi email dan password."; return; }
+    const btn = $("#login-btn");
+    btn.disabled = true; btn.textContent = "Masuk...";
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      $("#login-pass").value = "";
+    } catch (x) {
+      err.textContent = authMsg(x);
+    } finally {
+      btn.disabled = false; btn.textContent = "Masuk";
+    }
+  });
+  $("#btn-logout").addEventListener("click", () => signOut(auth));
+
+  /* ---------- Admin: daftar template ---------- */
+  const ADMIN_TABS = TABS.filter((t) => t.items).map((t) => ({ id: t.id, label: t.label }));
+  let adminTab = "chat";
+  let editingId = null;
+
+  function buildAdminTabs() {
+    const box = $("#admin-tabs");
+    box.innerHTML = "";
+    ADMIN_TABS.forEach((t) => {
+      const b = el("button", "tab", t.label);
+      b.type = "button";
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", String(t.id === adminTab));
+      b.addEventListener("click", () => { adminTab = t.id; buildAdminTabs(); renderAdmin(); });
+      box.appendChild(b);
+    });
+  }
+
+  const tabRows = () => allDocs
+    .filter((d) => d.tab === adminTab)
+    .sort((a, b) => (Number.isFinite(a.order) ? a.order : 9999) - (Number.isFinite(b.order) ? b.order : 9999));
+
+  function renderAdmin() {
+    const list = $("#admin-list");
+    list.innerHTML = "";
+    $("#btn-seed").hidden = allDocs.length > 0;
+    const rows = tabRows();
+    if (!rows.length) {
+      list.appendChild(el("div", "empty", allDocs.length
+        ? "Belum ada template di tab ini. Klik “Tambah template”."
+        : "Database masih kosong. Klik “Unggah data bawaan” untuk mengisi dari template yang ada di file, atau tambah satu per satu."));
+      return;
+    }
+    rows.forEach((d) => {
+      const row = el("div", "admin-row");
+      const info = el("div");
+      info.append(
+        el("div", "admin-title", d.title),
+        el("div", "admin-meta", (d.cat || "-") + " · urutan " + (Number.isFinite(d.order) ? d.order : "-") + (d.greet === false ? " · tanpa salam" : "")),
+        el("div", "admin-snip", (d.text || "(kosong, hanya salam pembuka)").replace(/\s+/g, " ").slice(0, 140))
+      );
+      const act = el("div", "actions");
+      const be = el("button", "btn sm", "Edit"); be.type = "button";
+      be.setAttribute("aria-label", "Edit " + d.title);
+      be.addEventListener("click", () => openEditor(d));
+      const bd = el("button", "btn sm danger", "Hapus"); bd.type = "button";
+      bd.setAttribute("aria-label", "Hapus " + d.title);
+      bd.addEventListener("click", async () => {
+        if (!confirm("Hapus template \"" + d.title + "\"? Tindakan ini tidak bisa dibatalkan.")) return;
+        try { await deleteDoc(doc(db, COLLECTION, d.id)); }
+        catch (x) { alert(writeMsg(x)); }
+      });
+      act.append(be, bd);
+      row.append(info, act);
+      list.appendChild(row);
+    });
+  }
+
+  /* ---------- Admin: editor tambah / edit ---------- */
+  const editor = $("#editor");
+  function openEditor(d) {
+    editingId = d ? d.id : null;
+    $("#editor-title").textContent = (d ? "Edit template" : "Tambah template") + " · " + ADMIN_TABS.find((t) => t.id === adminTab).label;
+    $("#ed-title").value = d ? d.title : "";
+    $("#ed-cat").value = d ? (d.cat || "") : "";
+    $("#ed-text").value = d ? d.text : "";
+    $("#ed-greet").checked = d ? d.greet !== false : true;
+    $("#ed-greet-wrap").hidden = adminTab !== "chat";   // salam pembuka hanya relevan untuk tab chat
+    const maxOrder = tabRows().reduce((m, x) => Math.max(m, Number.isFinite(x.order) ? x.order : 0), 0);
+    $("#ed-order").value = d && Number.isFinite(d.order) ? d.order : maxOrder + 1;
+    const cats = [...new Set(tabRows().map((x) => x.cat).filter(Boolean))];
+    $("#ed-cats").innerHTML = "";
+    cats.forEach((c) => { const o = document.createElement("option"); o.value = c; $("#ed-cats").appendChild(o); });
+    $("#ed-error").textContent = "";
+    if (typeof editor.showModal === "function") editor.showModal();
+    $("#ed-title").focus();
+  }
+  $("#btn-add").addEventListener("click", () => openEditor(null));
+  $("#ed-cancel").addEventListener("click", () => editor.close());
+
+  $("#editor-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const err = $("#ed-error");
+    const title = $("#ed-title").value.trim();
+    const cat = $("#ed-cat").value.trim();
+    const text = $("#ed-text").value.replace(/\r\n/g, "\n").trim();
+    const greet = adminTab === "chat" ? $("#ed-greet").checked : true;
+    const order = parseInt($("#ed-order").value, 10);
+    if (!title) { err.textContent = "Judul wajib diisi."; return; }
+    if (!cat) { err.textContent = "Kategori wajib diisi."; return; }
+    if (!text && !(adminTab === "chat" && greet)) { err.textContent = "Isi pesan wajib diisi."; return; }
+    if (!Number.isFinite(order) || order < 1) { err.textContent = "Urutan harus angka 1 atau lebih."; return; }
+    const data = { tab: adminTab, title, cat, text, order };
+    if (adminTab === "chat" && !greet) data.greet = false;
+    const btn = $("#ed-save");
+    btn.disabled = true; btn.textContent = "Menyimpan...";
+    try {
+      if (editingId) await setDoc(doc(db, COLLECTION, editingId), data);
+      else await addDoc(collection(db, COLLECTION), data);
+      editor.close();
+    } catch (x) {
+      err.textContent = writeMsg(x);
+    } finally {
+      btn.disabled = false; btn.textContent = "Simpan";
+    }
+  });
+
+  /* ---------- Unggah data bawaan (hanya muncul saat database kosong) ---------- */
+  async function seed() {
     const batch = writeBatch(db);
     let n = 0;
     Object.entries(defaults).forEach(([tabId, items]) => {
@@ -893,8 +1142,16 @@ if (String(firebaseConfig.apiKey).startsWith("ISI_")) {
       });
     });
     await batch.commit();
-    console.log("[Firebase] " + n + " template terunggah.");
-  };
+    return n;
+  }
+  $("#btn-seed").addEventListener("click", async () => {
+    if (!confirm("Unggah semua template bawaan ke database?")) return;
+    const b = $("#btn-seed");
+    b.disabled = true;
+    try { await seed(); }
+    catch (x) { alert(writeMsg(x)); }
+    finally { b.disabled = false; }
+  });
 }
 </script>
 </body>
