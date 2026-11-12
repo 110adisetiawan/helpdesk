@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Upaznet Helpdesk – SOP & Template Chat</title>
 <link rel="icon" href="img/logo_upazder.png" type="image/png">
+<!-- Tema: pakai pilihan yang tersimpan, kalau belum ada ikuti pengaturan perangkat.
+     Ditaruh paling awal supaya tidak ada kedipan putih saat halaman dibuka. -->
+<script>
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("upaznet-theme"); } catch (e) {}
+  if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  document.documentElement.dataset.theme = t;
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,7 +35,29 @@
     --yes-tint: #E8F6EA;
     --flag: #FFE9A8;
     --flag-ink: #6B4E00;
+    --nav: #14306A;
+    --blue-tint: #E7EEF9;
     --radius: 10px;
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --paper: #0E1524;
+    --surface: #172033;
+    --ink: #C9D8F5;
+    --text: #E4E9F2;
+    --muted: #9AA7BD;
+    --line: #2A3650;
+    --brand-dark: #6FD17F;
+    --brand-tint: #1B3A25;
+    --agent: #1F3B2A;
+    --no: #FF7B85;
+    --no-tint: #3A1D22;
+    --yes-tint: #1B3325;
+    --flag: #5C4A12;
+    --flag-ink: #FFE9A8;
+    --nav: #0A1020;
+    --blue-tint: #1E2A44;
+    color-scheme: dark;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -39,7 +71,7 @@
   :focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
 
   /* ---------- Navbar ---------- */
-  .navbar { position: sticky; top: 0; z-index: 10; background: var(--ink); color: #fff; }
+  .navbar { position: sticky; top: 0; z-index: 10; background: var(--nav); color: #fff; }
   .navbar-inner {
     max-width: 1500px; margin: 0 auto;
     display: flex; align-items: center; gap: 24px;
@@ -61,6 +93,12 @@
   }
   .nav-links a:hover { color: #fff; }
   .nav-links a[aria-current="page"] { color: #fff; border-bottom-color: #6FD17F; }
+  .theme-toggle {
+    font: inherit; font-size: 1.1rem; line-height: 1;
+    width: 38px; height: 38px; flex: none; border-radius: 8px; cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, .25); background: transparent; color: #fff;
+  }
+  .theme-toggle:hover { background: rgba(255, 255, 255, .12); }
 
   /* ---------- Layout ---------- */
   main { max-width: 1500px; margin: 0 auto; padding: 36px 20px 80px; }
@@ -94,6 +132,7 @@
     cursor: zoom-in; border-radius: 6px; overflow: hidden;
   }
   .pamphlet-img img { display: block; width: 100%; height: auto; }
+  :root[data-theme="dark"] .pamphlet-img img { filter: brightness(.92); }
   .pamphlet h2 { margin: 0; font-size: 1.05rem; color: var(--ink); }
   .pamphlet p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -106,6 +145,7 @@
   .btn:hover { background: var(--brand-tint); }
   .btn.solid { background: var(--brand); color: #fff; }
   .btn.solid:hover { background: var(--brand-dark); }
+  :root[data-theme="dark"] .btn.solid:hover { color: #0E1524; }
 
   dialog.viewer {
     border: 0; padding: 0; background: transparent;
@@ -117,7 +157,7 @@
   .viewer-close {
     position: fixed; top: 12px; right: 12px; z-index: 2;
     font: inherit; font-weight: 700; padding: 8px 16px; border-radius: 8px; cursor: pointer;
-    border: 0; background: #fff; color: var(--ink);
+    border: 0; background: #fff; color: #14306A;
   }
 
   /* ---------- SOP: versi teks (belum dipakai, disimpan kalau nanti dibutuhkan) ---------- */
@@ -126,12 +166,12 @@
   }
   .case-head { margin-bottom: 8px; font-weight: 700; font-size: .9rem; }
   .case-head span { padding: 8px 14px; border-radius: 8px; color: #fff; }
-  .case-head .h-case { background: var(--ink); }
+  .case-head .h-case { background: var(--nav); }
   .case-head .h-no { background: var(--no); }
   .case-head .h-yes { background: var(--brand); }
   .case { margin-bottom: 10px; }
   .case > div { padding: 12px 14px; border-radius: 8px; }
-  .case .c-case { background: #E7EEF9; font-weight: 700; color: var(--ink); }
+  .case .c-case { background: var(--blue-tint); font-weight: 700; color: var(--ink); }
   .case .c-no { background: var(--no-tint); }
   .case .c-yes { background: var(--yes-tint); }
   .case .tag { display: none; font-weight: 700; font-size: .8rem; margin-bottom: 2px; }
@@ -185,7 +225,7 @@
     border-radius: 14px 14px 14px 4px;
     font-size: .95rem; white-space: pre-line; flex: 1;
   }
-  .bubble.letter { border-radius: 6px 14px 14px 14px; background: #E7EEF9; }
+  .bubble.letter { border-radius: 6px 14px 14px 14px; background: var(--blue-tint); }
   .ph { background: var(--flag); color: var(--flag-ink); padding: 0 4px; border-radius: 4px; font-weight: 600; }
   .bubble.clickable { cursor: copy; border: 2px solid transparent; transition: border-color .15s; }
   .bubble.clickable:hover { border-color: var(--brand); }
@@ -216,7 +256,7 @@
   .field label { display: block; margin-bottom: 2px; font-size: .78rem; font-weight: 700; color: var(--muted); }
   .field input {
     width: 100%; font: inherit; padding: 8px 10px;
-    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text);
   }
   .field input.invalid { border-color: var(--no); box-shadow: 0 0 0 3px var(--no-tint); }
   .field input[readonly] { background: var(--brand-tint); color: var(--brand-dark); font-weight: 700; cursor: default; border-color: transparent; }
@@ -228,7 +268,7 @@
   [hidden] { display: none !important; }
   .field textarea {
     width: 100%; font: inherit; padding: 8px 10px; resize: vertical;
-    border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--text);
+    border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text);
   }
   .field .note { margin: 4px 0 0; font-size: .8rem; color: var(--muted); }
   .admin-card {
@@ -253,6 +293,7 @@
   .btn:disabled { opacity: .6; cursor: default; }
   dialog.editor {
     border: 0; border-radius: var(--radius); padding: 22px;
+    background: var(--surface); color: var(--text);
     width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto;
   }
   dialog.editor::backdrop { background: rgba(10, 18, 36, .6); }
@@ -299,6 +340,7 @@
       <a href="#template" data-nav="template">Template Chat</a>
       <a href="#admin" data-nav="admin">Admin</a>
     </div>
+    <button type="button" id="theme-toggle" class="theme-toggle" aria-label="Ganti mode tampilan"></button>
   </nav>
 </header>
 
@@ -908,6 +950,21 @@ function renderTab(tab) {
     grid.appendChild(card);
   });
 }
+
+/* ---------- Mode terang / gelap ---------- */
+const themeBtn = $("#theme-toggle");
+function paintThemeBtn() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  themeBtn.textContent = dark ? "☀️" : "🌙";
+  themeBtn.title = dark ? "Pindah ke mode terang" : "Pindah ke mode gelap";
+}
+themeBtn.addEventListener("click", () => {
+  const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("upaznet-theme", next); } catch (_) {}
+  paintThemeBtn();
+});
+paintThemeBtn();
 
 /* ---------- Inisialisasi ---------- */
 buildTabs();
