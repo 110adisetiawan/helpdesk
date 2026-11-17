@@ -23,6 +23,9 @@
        allow write: if request.auth != null
                     && request.auth.token.email in ['EMAIL_ADMIN_KAMU'];
      }
+
+
+     
    ===================================================================== */
 import { getApps, getApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
