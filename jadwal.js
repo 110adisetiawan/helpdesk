@@ -23,9 +23,6 @@
        allow write: if request.auth != null
                     && request.auth.token.email in ['EMAIL_ADMIN_KAMU'];
      }
-
-
-     
    ===================================================================== */
 import { getApps, getApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
@@ -79,9 +76,11 @@ const writeMsg = (e) => (e && e.code === "permission-denied")
 const style = el("style");
 style.id = "jadwal-style";
 style.textContent = Object.entries(SHIFT_STYLE).map(([k, [bg, fg]]) => `.sh-${k}{background:${bg};color:${fg}}`).join("") + `
+  :root{--j-cell:#F3F5F7;--j-cell-alt:#FFFFFF;--j-ink:#1F2933;--j-note:#3C4650;--j-border:#FFFFFF}
+  :root[data-theme="dark"]{--j-cell:#1E2A44;--j-cell-alt:#172033;--j-ink:#E4E9F2;--j-note:#B7C4DE;--j-border:#0E1524}
   .jadwal-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px;margin-bottom:12px}
   .jadwal-bar .field{min-width:150px}
-  .jadwal-bar select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--text)}
+  .jadwal-bar select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text)}
   .jadwal-legend{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto;align-self:center}
   .jadwal-legend span{padding:3px 10px;border-radius:6px;font-size:.78rem;font-weight:700}
   .jadwal-mode{margin:0 0 12px;font-size:.9rem;color:var(--muted)}
@@ -94,14 +93,14 @@ style.textContent = Object.entries(SHIFT_STYLE).map(([k, [bg, fg]]) => `.sh-${k}
   .jadwal th:nth-child(-n+2){z-index:4}
   .jadwal th:nth-child(1),.jadwal td.dt{position:sticky;left:0;min-width:108px;width:108px}
   .jadwal th:nth-child(2),.jadwal td.dy{position:sticky;left:108px;min-width:96px;width:96px}
-  .jadwal td{padding:0;height:36px;border-right:1px solid #fff;border-bottom:1px solid #fff;text-align:center;font-weight:700;font-size:.85rem}
-  .jadwal td.dt,.jadwal td.dy{z-index:1;padding:0 8px;background:#F3F5F7;color:#1F2933;border-bottom:1px solid var(--line)}
-  .jadwal tr:nth-child(even) td.dt,.jadwal tr:nth-child(even) td.dy,.jadwal tr:nth-child(even) td.nt{background:#fff}
+  .jadwal td{padding:0;height:36px;border-right:1px solid var(--j-border);border-bottom:1px solid var(--j-border);text-align:center;font-weight:700;font-size:.85rem}
+  .jadwal td.dt,.jadwal td.dy{z-index:1;padding:0 8px;background:var(--j-cell);color:var(--j-ink);border-bottom:1px solid var(--line)}
+  .jadwal tr:nth-child(even) td.dt,.jadwal tr:nth-child(even) td.dy,.jadwal tr:nth-child(even) td.nt{background:var(--j-cell-alt)}
   .jadwal td.dy.sun{color:var(--no)}
   .jadwal tr.today td.dt,.jadwal tr.today td.dy{background:var(--brand-tint);color:var(--brand-dark)}
   .jadwal tr.today td.dt{box-shadow:inset 4px 0 0 var(--brand)}
   .jadwal td.sh{min-width:92px}
-  .jadwal td.nt{min-width:200px;padding:0 10px;background:#F3F5F7;color:#3C4650;font-weight:600;border-bottom:1px solid var(--line)}
+  .jadwal td.nt{min-width:200px;padding:0 10px;background:var(--j-cell);color:var(--j-note);font-weight:600;border-bottom:1px solid var(--line)}
   .jadwal td select{width:100%;height:36px;border:0;background:transparent;color:inherit;font:inherit;font-weight:700;text-align:center;text-align-last:center;cursor:pointer}
   .jadwal td select option{background:#fff;color:#1B2436}
   .jadwal td input{width:100%;height:36px;border:0;background:transparent;color:inherit;font:inherit;font-weight:600;text-align:center}
