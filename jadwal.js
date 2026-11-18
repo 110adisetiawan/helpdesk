@@ -17,6 +17,10 @@
      cells : { "1": { "SATRIA": "PAGI", ... }, "2": {...} }   (kunci = tanggal)
      notes : { "3": "haris jam 1 siang", ... }
 
+   Tanggal merah dipakai bersama oleh semua jadwal (Helpdesk dan Teknisi), disimpan
+   satu dokumen per tahun: id "libur-YYYY" (contoh "libur-2026")
+     holidays: { "2026-12-25": { "color": "#C62F3A", "label": "Natal" }, ... }
+
    Periode dengan cut off (cutoff: 25 di SCHEDULES):
      Dropdown "Desember" = 26 November sampai 25 Desember. Tanggal 26 dst. ikut
      bulan berikutnya. Kunci tanggal di cells/notes tetap angka tanggal biasa
@@ -41,10 +45,13 @@ const SHIFTS = ["PAGI", "MIDDLE", "SORE", "MALAM", "LIBUR", "IJIN", "CUTI"];   /
 const DEFAULT_PATTERN = ["PAGI", "PAGI", "SORE", "SORE", "MALAM", "LIBUR", "LIBUR"];
 const DEFAULT_HEAD = "#376A58";          // warna judul kolom nama kalau belum diberi warna
 const HEX = /^#[0-9a-fA-F]{6}$/;
+const DEFAULT_HOLIDAY = "#C62F3A";       // warna bawaan tanggal merah
 const MAX_NAMES = 12;
 
 // Daftar jadwal. Urutan = urutan menu di navbar. Untuk menambah jadwal lain, cukup tambah satu baris di sini.
-//   hash      : alamat halaman (jangan ada dua yang sama)
+//   hash      : alamat halaman (jangan ada dua yang sama). Semua jadwal berbagi satu menu "Jadwal" di navbar,
+//               pindah antar jadwal lewat tombol di bagian atas halaman.
+//   sub       : bagian setelah "#jadwal/" untuk jadwal selain yang pertama
 //   docPrefix : awalan id dokumen Firestore ("" = id polos "YYYY-MM", dipakai jadwal helpdesk)
 //   names     : nama awal kolom, bisa diubah admin lewat tombol "Atur nama"
 //   cutoff    : (opsional) tanggal terakhir tiap periode, maksimal 27. Contoh 25 = periode 26 bulan lalu sampai 25 bulan ini.
@@ -53,7 +60,7 @@ const SCHEDULES = [
   { key: "helpdesk", hash: "#jadwal", label: "Jadwal Helpdesk", who: "helpdesk",
     desc: "Jadwal shift tim helpdesk per bulan.", docPrefix: "",
     names: ["SATRIA", "MAISTRO", "ZHIFRON", "AWAN", "AHSIN", "AKBAR", "HARIS"] },
-  { key: "teknisi", hash: "#jadwal-teknisi", label: "Jadwal Teknisi", who: "teknisi",
+  { key: "teknisi", hash: "#jadwal/teknisi", sub: "teknisi", label: "Jadwal Teknisi", who: "teknisi",
     desc: "Jadwal shift tim teknisi per periode (cut off tanggal 25).", docPrefix: "teknisi-",
     cutoff: 25,
     names: ["FAJAR", "UDIN"] }
@@ -91,6 +98,10 @@ function inkFor(hex) {
 function paintHead(th, color) {
   if (color && HEX.test(color)) { th.style.background = color; th.style.color = inkFor(color); }
 }
+// Tanggal merah bersama: HOL[tahun] = { "YYYY-MM-DD": { color, label } }
+const HOL = {};
+const holKey = (date) => date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
+const holGet = (date) => (HOL[date.getFullYear()] || {})[holKey(date)];
 const writeMsg = (e) => (e && e.code === "permission-denied")
   ? "Tidak punya izin mengubah jadwal. Pastikan email kamu terdaftar di Rules Firestore untuk koleksi \"schedules\"."
   : "Gagal menyimpan: " + ((e && e.message) || e);
@@ -148,6 +159,9 @@ style.textContent = Object.entries(SHIFT_STYLE).map(([k, [bg, fg]]) => `.sh-${k}
   .j-prow label{display:flex;align-items:center;gap:8px;font-weight:700}
   .j-range{display:flex;flex-wrap:wrap;gap:12px}
   .j-range .field{min-width:120px}
+  .j-hrow{display:grid;grid-template-columns:minmax(0,1.1fr) auto minmax(0,1.4fr) auto;gap:6px;align-items:center;margin-bottom:8px}
+  .j-hrow input[type=color]{width:42px;height:36px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+  @media (max-width:560px){.j-hrow{grid-template-columns:1fr auto;}.j-hrow .j-hlabel{grid-column:1/-1;order:3}}
   .j-p-sum{margin:0;font-size:.88rem;font-weight:600;color:var(--muted)}
   .j-p-sum.err{color:var(--no)}
   @media (max-width:760px){
@@ -166,14 +180,8 @@ const instances = [];
 /* =====================================================================
    Satu jadwal = satu menu + satu halaman + satu state
    ===================================================================== */
-function createSchedule(cfg, afterEl) {
+function createSchedule(cfg, link) {
   const uid = "j-" + cfg.key;
-
-  /* --- menu navbar --- */
-  const link = el("a", null, cfg.label);
-  link.href = cfg.hash;
-  link.dataset.nav = "jadwal-" + cfg.key;
-  if (afterEl) afterEl.after(link); else document.querySelector(".nav-links").appendChild(link);
 
   /* --- halaman --- */
   const section = el("section", "page");
@@ -181,6 +189,7 @@ function createSchedule(cfg, afterEl) {
   section.hidden = true;
   section.setAttribute("aria-labelledby", uid + "-h");
   section.innerHTML = `
+    <div class="tabs j-switch" role="tablist" aria-label="Pilih jadwal"></div>
     <div class="page-head">
       <h1 id="${uid}-h"></h1>
       <p class="j-desc"></p>
@@ -190,6 +199,7 @@ function createSchedule(cfg, afterEl) {
       <div class="field"><label for="${uid}-year">Tahun</label><select id="${uid}-year" class="j-year"></select></div>
       <button type="button" class="btn sm j-names" hidden>Atur nama &amp; warna</button>
       <button type="button" class="btn sm j-pattern" hidden>Isi pola otomatis</button>
+      <button type="button" class="btn sm j-holi" hidden>Atur tanggal merah</button>
     </div>
     <p class="jadwal-mode j-period" hidden></p>
     <p class="jadwal-mode j-mode"></p>
@@ -209,6 +219,19 @@ function createSchedule(cfg, afterEl) {
         <div class="actions">
           <button type="submit" class="btn solid j-n-save">Simpan</button>
           <button type="button" class="btn j-n-cancel">Batal</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="editor j-dialog j-hdialog" aria-labelledby="${uid}-hdlg-title">
+      <form class="j-hform" novalidate>
+        <h2 id="${uid}-hdlg-title">Atur tanggal merah</h2>
+        <p class="note">Tanggal dan hari yang dipilih akan diwarnai di tabel (cocok untuk hari besar dan libur bersama). Warna bisa diganti per tanggal. Nama libur tampil di kolom keterangan. Pengaturan ini dipakai bersama oleh Jadwal Helpdesk dan Jadwal Teknisi, jadi cukup diatur sekali. Yang tampil di sini hanya tanggal pada periode yang sedang dibuka.</p>
+        <div class="j-hlist"></div>
+        <div class="actions"><button type="button" class="btn sm j-hadd">+ Tambah tanggal</button></div>
+        <p class="form-error j-h-err" role="alert"></p>
+        <div class="actions">
+          <button type="submit" class="btn solid j-h-save">Simpan</button>
+          <button type="button" class="btn j-h-cancel">Batal</button>
         </div>
       </form>
     </dialog>
@@ -244,6 +267,16 @@ function createSchedule(cfg, afterEl) {
     </dialog>`;
   document.querySelector("main").appendChild(section);
   const q = (s) => section.querySelector(s);
+
+  // tombol pindah antar jadwal (Helpdesk / Teknisi)
+  SCHEDULES.forEach((c) => {
+    const b = el("button", "tab", c.label);
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(c === cfg));
+    b.addEventListener("click", () => { location.hash = c.hash; });
+    q(".j-switch").appendChild(b);
+  });
 
   q("h1").textContent = cfg.label;
   q(".j-desc").textContent = cfg.desc;
@@ -302,6 +335,7 @@ function createSchedule(cfg, afterEl) {
     const ok = S.status === "ok";
     q(".j-names").hidden = !(S.edit && ok);
     q(".j-pattern").hidden = !(S.edit && ok);
+    q(".j-holi").hidden = !(S.edit && ok);
     q(".j-period").hidden = !cfg.cutoff;
     if (cfg.cutoff) q(".j-period").textContent = "Periode: " + periodText();
     q(".j-mode").textContent = !ok ? "" : S.edit
@@ -343,10 +377,11 @@ function createSchedule(cfg, afterEl) {
     periodDays().forEach(({ d, date }, idx) => {
       const tr = el("tr");
       if (sameDay(date, today)) { tr.className = "today"; todayIdx = idx; }
-      tr.appendChild(el("td", "dt", pad(d) + "/" + pad(date.getMonth() + 1) + "/" + date.getFullYear()));
-      tr.appendChild(el("td", "dy" + (date.getDay() === 0 ? " sun" : ""), DAYS[date.getDay()]));
+      const dtTd = el("td", "dt", pad(d) + "/" + pad(date.getMonth() + 1) + "/" + date.getFullYear());
+      const dyTd = el("td", "dy" + (date.getDay() === 0 ? " sun" : ""), DAYS[date.getDay()]);
+      tr.append(dtTd, dyTd);
 
-      const row = { day: d, tr, cells: [], noteTd: null, noteInput: null };
+      const row = { day: d, date, tr, dtTd, dyTd, cells: [], noteTd: null, noteInput: null };
       S.names.forEach((name) => {
         const td = el("td", "sh");
         let sel = null;
@@ -403,8 +438,17 @@ function createSchedule(cfg, afterEl) {
         }
       });
       const note = typeof S.notes[r.day] === "string" ? S.notes[r.day] : "";
-      if (r.noteInput) { if (document.activeElement !== r.noteInput) r.noteInput.value = note; }
-      else r.noteTd.textContent = note;
+      // tanggal merah: warnai kolom tanggal dan hari, tampilkan nama libur di keterangan
+      const h = holGet(r.date);
+      [r.dtTd, r.dyTd].forEach((td) => {
+        if (h) { td.style.background = h.color; td.style.color = inkFor(h.color); td.title = h.label || "Tanggal merah"; }
+        else { td.style.background = ""; td.style.color = ""; td.removeAttribute("title"); }
+      });
+      const hl = h && h.label ? h.label : "";
+      if (r.noteInput) {
+        r.noteInput.placeholder = hl;
+        if (document.activeElement !== r.noteInput) r.noteInput.value = note;
+      } else r.noteTd.textContent = hl && note ? hl + " · " + note : (hl || note);
     });
     renderRekap();
   }
@@ -529,6 +573,90 @@ function createSchedule(cfg, afterEl) {
     try {
       await setDoc(S.ref, { names, colors }, { merge: true, mergeFields: ["names", "colors"] });
       ndlg.close();
+    } catch (x) {
+      err.textContent = writeMsg(x);
+    } finally {
+      btn.disabled = false; btn.textContent = "Simpan";
+    }
+  });
+
+  /* --- atur tanggal merah --- */
+  const hdlg = q(".j-hdialog");
+  let hrows = [];
+  const dayLabel = ({ d, date }) => d + " " + MONTHS[date.getMonth()].slice(0, 3) + " (" + DAYS[date.getDay()] + ")";
+  function collectH() {
+    hrows = [...q(".j-hlist").querySelectorAll(".j-hrow")].map((r) => ({
+      d: parseInt(r.querySelector(".j-hday").value, 10),
+      color: r.querySelector(".j-hcolor").value,
+      label: r.querySelector(".j-hlabel").value
+    }));
+  }
+  function renderH() {
+    const list = q(".j-hlist");
+    list.innerHTML = "";
+    const days = periodDays();
+    hrows.forEach((r, i) => {
+      const row = el("div", "j-hrow");
+      const sel = el("select", "j-hday");
+      sel.setAttribute("aria-label", "Tanggal merah " + (i + 1));
+      days.forEach((x) => { const o = el("option", null, dayLabel(x)); o.value = String(x.d); sel.appendChild(o); });
+      sel.value = String(r.d);
+      const color = el("input", "j-hcolor");
+      color.type = "color"; color.value = HEX.test(r.color) ? r.color : DEFAULT_HOLIDAY;
+      color.setAttribute("aria-label", "Warna tanggal merah " + (i + 1));
+      const label = el("input", "j-hlabel");
+      label.type = "text"; label.maxLength = 40; label.value = r.label || ""; label.placeholder = "Nama libur (opsional)";
+      label.setAttribute("aria-label", "Nama libur " + (i + 1));
+      const del = el("button", "btn sm danger", "Hapus"); del.type = "button";
+      del.setAttribute("aria-label", "Hapus tanggal merah " + (i + 1));
+      del.addEventListener("click", () => { collectH(); hrows.splice(i, 1); renderH(); });
+      row.append(sel, color, label, del);
+      list.appendChild(row);
+    });
+    if (!hrows.length) list.appendChild(el("p", "note", "Belum ada tanggal merah di periode ini."));
+  }
+  q(".j-holi").addEventListener("click", () => {
+    hrows = periodDays()
+      .map((x) => ({ x, h: holGet(x.date) }))
+      .filter((o) => o.h)
+      .map((o) => ({ d: o.x.d, color: o.h.color, label: o.h.label || "" }));
+    renderH();
+    q(".j-h-err").textContent = "";
+    if (typeof hdlg.showModal === "function") hdlg.showModal();
+  });
+  q(".j-hadd").addEventListener("click", () => {
+    collectH();
+    const used = new Set(hrows.map((r) => r.d));
+    const free = periodDays().find((x) => !used.has(x.d));
+    if (!free) { q(".j-h-err").textContent = "Semua tanggal di periode ini sudah ditambahkan."; return; }
+    q(".j-h-err").textContent = "";
+    hrows.push({ d: free.d, color: DEFAULT_HOLIDAY, label: "" });
+    renderH();
+  });
+  q(".j-h-cancel").addEventListener("click", () => hdlg.close());
+  q(".j-hform").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    collectH();
+    const err = q(".j-h-err");
+    // Tanggal pada periode ini diganti dengan isi dialog; tanggal di luar periode (dan di tahun lain) tidak disentuh.
+    const days = periodDays();
+    const byYear = {};
+    days.forEach((x) => {
+      const y = x.date.getFullYear();
+      if (!byYear[y]) byYear[y] = Object.assign({}, HOL[y] || {});
+      delete byYear[y][holKey(x.date)];
+    });
+    hrows.forEach((r) => {
+      const x = days.find((z) => z.d === r.d);
+      if (!x) return;
+      byYear[x.date.getFullYear()][holKey(x.date)] = { color: HEX.test(r.color) ? r.color.toUpperCase() : DEFAULT_HOLIDAY, label: r.label.trim().slice(0, 40) };
+    });
+    const btn = q(".j-h-save");
+    btn.disabled = true; btn.textContent = "Menyimpan...";
+    try {
+      await Promise.all(Object.entries(byYear).map(([y, holidays]) =>
+        setDoc(doc(db, COLLECTION, "libur-" + y), { holidays }, { merge: true, mergeFields: ["holidays"] })));
+      hdlg.close();
     } catch (x) {
       err.textContent = writeMsg(x);
     } finally {
@@ -708,24 +836,29 @@ function createSchedule(cfg, afterEl) {
     cfg, link, section,
     subscribe,
     setEdit(v) { S.edit = !!v; render(); },
+    refresh() { if (S.status === "ok") sync(); },
     setNoFirebase() { S.status = "nofb"; render(); }
   };
 }
 
 /* ---------- Pasang semua jadwal ke navbar & halaman ---------- */
-let anchor = document.querySelector('.nav-links [data-nav="template"]');
-SCHEDULES.forEach((cfg) => {
-  const inst = createSchedule(cfg, anchor);
-  anchor = inst.link;                       // jadwal berikutnya dipasang di kanan jadwal sebelumnya
-  instances.push(inst);
-});
+const navLink = el("a", null, "Jadwal");
+navLink.href = "#jadwal";
+navLink.dataset.nav = "jadwal";
+const tplLink = document.querySelector('.nav-links [data-nav="template"]');
+if (tplLink) tplLink.after(navLink); else document.querySelector(".nav-links").appendChild(navLink);
+SCHEDULES.forEach((cfg) => instances.push(createSchedule(cfg, navLink)));
 
 /* ---------- Routing ----------
    route() bawaan index.html tidak mengenal #jadwal (dianggap SOP), jadi di sini
    halaman lain disembunyikan lagi setelah route() bawaan selesai. */
 function applyRoute() {
-  const key = location.hash.split("/")[0];
-  const active = instances.find((i) => i.cfg.hash === key);
+  const h = location.hash;
+  let active = null;
+  if (h.startsWith("#jadwal")) {
+    const sub = h.startsWith("#jadwal-teknisi") ? "teknisi" : h.split("/")[1];   // "#jadwal-teknisi" = alamat lama
+    active = instances.find((i) => i.cfg.sub === sub) || instances[0];
+  }
   if (active) ["sop", "template", "admin"].forEach((n) => { const p = document.getElementById("page-" + n); if (p) p.hidden = true; });
 
   let changed = false;
@@ -735,7 +868,7 @@ function applyRoute() {
   });
   if (active) {
     document.querySelectorAll("[data-nav]").forEach((a) => {
-      if (a === active.link) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+      if (a === navLink) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
     document.title = active.cfg.label + " – Upaznet Helpdesk";
   }
@@ -755,4 +888,18 @@ applyRoute();
   db = getFirestore(app);
   onAuthStateChanged(getAuth(app), (u) => instances.forEach((i) => i.setEdit(!!u)));
   instances.forEach((i) => i.subscribe());
+
+  // tanggal merah bersama: satu dokumen per tahun, dipantau realtime
+  const y0 = new Date().getFullYear();
+  for (let y = y0 - 2; y <= y0 + 2; y++) {
+    onSnapshot(doc(db, COLLECTION, "libur-" + y), (snap) => {
+      const m = {};
+      const raw = snap.exists() ? snap.data().holidays : null;
+      if (raw && typeof raw === "object") Object.entries(raw).forEach(([k, v]) => {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && v && typeof v.color === "string" && HEX.test(v.color)) m[k] = { color: v.color, label: typeof v.label === "string" ? v.label : "" };
+      });
+      HOL[y] = m;
+      instances.forEach((i) => i.refresh());
+    }, (err) => console.warn("[Tanggal merah " + y + "] Gagal memuat:", err));
+  }
 })();
