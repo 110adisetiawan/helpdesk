@@ -8,7 +8,7 @@
    File ini memakai ulang koneksi Firebase dari index.html (tidak perlu isi
    config lagi), lalu menambahkan sendiri menu navbar, halaman, dan gayanya.
 
-   Data (Firestore): koleksi "schedules", satu dokumen per bulan
+   Data (Firestore): koleksi "schedules", satu dokumen per periode
      Helpdesk : id "YYYY-MM"            (contoh "2026-11")
      Teknisi  : id "teknisi-YYYY-MM"    (contoh "teknisi-2026-11")
    Isi dokumen:
@@ -16,6 +16,11 @@
      colors: { "SATRIA": "#E11D48", ... }      (warna judul kolom nama, opsional)
      cells : { "1": { "SATRIA": "PAGI", ... }, "2": {...} }   (kunci = tanggal)
      notes : { "3": "haris jam 1 siang", ... }
+
+   Periode dengan cut off (cutoff: 25 di SCHEDULES):
+     Dropdown "Desember" = 26 November sampai 25 Desember. Tanggal 26 dst. ikut
+     bulan berikutnya. Kunci tanggal di cells/notes tetap angka tanggal biasa
+     (26-31 untuk bulan sebelumnya, 1-25 untuk bulan ini), jadi tidak bentrok.
 
    Aturan Firestore (di dalam match /databases/{database}/documents).
    Satu aturan ini sudah mencakup jadwal helpdesk dan teknisi:
@@ -42,12 +47,15 @@ const MAX_NAMES = 12;
 //   hash      : alamat halaman (jangan ada dua yang sama)
 //   docPrefix : awalan id dokumen Firestore ("" = id polos "YYYY-MM", dipakai jadwal helpdesk)
 //   names     : nama awal kolom, bisa diubah admin lewat tombol "Atur nama"
+//   cutoff    : (opsional) tanggal terakhir tiap periode, maksimal 27. Contoh 25 = periode 26 bulan lalu sampai 25 bulan ini.
+//               Kosongkan kalau jadwal mengikuti bulan kalender biasa.
 const SCHEDULES = [
   { key: "helpdesk", hash: "#jadwal", label: "Jadwal Helpdesk", who: "helpdesk",
     desc: "Jadwal shift tim helpdesk per bulan.", docPrefix: "",
     names: ["SATRIA", "MAISTRO", "ZHIFRON", "AWAN", "AHSIN", "AKBAR", "HARIS"] },
   { key: "teknisi", hash: "#jadwal-teknisi", label: "Jadwal Teknisi", who: "teknisi",
-    desc: "Jadwal shift tim teknisi per bulan.", docPrefix: "teknisi-",
+    desc: "Jadwal shift tim teknisi per periode (cut off tanggal 25).", docPrefix: "teknisi-",
+    cutoff: 25,
     names: ["FAJAR", "UDIN"] }
 ];
 
@@ -73,6 +81,7 @@ function el(tag, cls, text) {
   return n;
 }
 const cssSafe = (v) => String(v).replace(/[^A-Za-z0-9_-]/g, "");
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 // warna huruf yang terbaca di atas warna latar (putih atau gelap)
 function inkFor(hex) {
   const n = parseInt(hex.slice(1), 16);
@@ -96,6 +105,7 @@ style.textContent = Object.entries(SHIFT_STYLE).map(([k, [bg, fg]]) => `.sh-${k}
   .jadwal-bar .field{min-width:150px}
   .jadwal-bar select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text)}
   .jadwal-mode{margin:0 0 12px;font-size:.9rem;color:var(--muted)}
+  .jadwal-mode.j-period{font-weight:700;color:var(--ink)}
   .jadwal-status{margin:0 0 12px;font-weight:600;color:var(--muted)}
   .jadwal-status:empty{display:none}
   .jadwal-status.err{color:var(--no)}
@@ -181,11 +191,12 @@ function createSchedule(cfg, afterEl) {
       <button type="button" class="btn sm j-names" hidden>Atur nama &amp; warna</button>
       <button type="button" class="btn sm j-pattern" hidden>Isi pola otomatis</button>
     </div>
+    <p class="jadwal-mode j-period" hidden></p>
     <p class="jadwal-mode j-mode"></p>
     <p class="jadwal-status j-status" role="status"></p>
     <div class="jadwal-wrap j-wrap" hidden></div>
     <div class="j-rekap-box" hidden>
-      <h2 class="section-title">Rekap bulan ini</h2>
+      <h2 class="section-title">Rekap periode ini</h2>
       <div class="rekap-wrap j-rekap"></div>
     </div>
     <dialog class="editor j-dialog j-ndialog" aria-labelledby="${uid}-ndlg-title">
@@ -222,6 +233,7 @@ function createSchedule(cfg, afterEl) {
           <div class="field"><label for="${uid}-from">Dari tanggal</label><input id="${uid}-from" class="j-from" type="number" min="1" step="1"></div>
           <div class="field"><label for="${uid}-to">Sampai tanggal</label><input id="${uid}-to" class="j-to" type="number" min="1" step="1"></div>
         </div>
+        <p class="note j-range-note"></p>
         <label class="check"><input type="checkbox" class="j-over"> Timpa sel yang sudah terisi</label>
         <p class="j-p-sum" role="status"></p>
         <div class="actions">
@@ -247,10 +259,31 @@ function createSchedule(cfg, afterEl) {
   };
   let refs = [];                // referensi elemen tiap baris tanggal
 
+  // Daftar tanggal pada periode yang sedang dipilih.
+  // Tanpa cutoff: tanggal 1 sampai akhir bulan. Dengan cutoff (mis. 25): tanggal 26 bulan lalu sampai 25 bulan ini.
+  function periodDays() {
+    const c = cfg.cutoff;
+    const start = c ? new Date(S.year, S.month - 1, c + 1) : new Date(S.year, S.month, 1);
+    const end = c ? new Date(S.year, S.month, c) : new Date(S.year, S.month + 1, 0);
+    const out = [];
+    for (const t = new Date(start); t <= end; t.setDate(t.getDate() + 1)) out.push({ d: t.getDate(), date: new Date(t) });
+    return out;
+  }
+  function periodText() {
+    const list = periodDays();
+    const a = list[0], b = list[list.length - 1];
+    return a.d + " " + MONTHS[a.date.getMonth()] + " " + a.date.getFullYear() + " sampai " + b.d + " " + MONTHS[b.date.getMonth()] + " " + b.date.getFullYear();
+  }
+
   /* --- dropdown bulan / tahun --- */
   MONTHS.forEach((m, i) => { const o = el("option", null, m); o.value = String(i); q(".j-month").appendChild(o); });
   for (let y = now.getFullYear() - 1; y <= now.getFullYear() + 2; y++) {
     const o = el("option", null, String(y)); o.value = String(y); q(".j-year").appendChild(o);
+  }
+  // Dengan cutoff, hari ini setelah tanggal cutoff sudah masuk periode bulan berikutnya
+  if (cfg.cutoff && now.getDate() > cfg.cutoff) {
+    const nx = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    S.year = nx.getFullYear(); S.month = nx.getMonth();
   }
   q(".j-month").value = String(S.month);
   q(".j-year").value = String(S.year);
@@ -269,12 +302,14 @@ function createSchedule(cfg, afterEl) {
     const ok = S.status === "ok";
     q(".j-names").hidden = !(S.edit && ok);
     q(".j-pattern").hidden = !(S.edit && ok);
+    q(".j-period").hidden = !cfg.cutoff;
+    if (cfg.cutoff) q(".j-period").textContent = "Periode: " + periodText();
     q(".j-mode").textContent = !ok ? "" : S.edit
       ? "Mode edit: pilih shift langsung di tabel, perubahan tersimpan otomatis."
       : "Hanya lihat. Untuk mengubah jadwal, masuk lewat menu Admin.";
 
     let msg = STATUS_TEXT[S.status] || "";
-    if (ok && !S.hasDoc) msg = S.edit ? "Belum ada jadwal untuk bulan ini. Pilih shift di tabel untuk mulai mengisi." : "Jadwal bulan ini belum diisi.";
+    if (ok && !S.hasDoc) msg = S.edit ? "Belum ada jadwal untuk periode ini. Pilih shift di tabel untuk mulai mengisi." : "Jadwal periode ini belum diisi.";
     const st = q(".j-status");
     st.textContent = msg;
     st.className = "jadwal-status j-status" + (S.status === "denied" || S.status === "error" ? " err" : "");
@@ -302,15 +337,13 @@ function createSchedule(cfg, afterEl) {
     table.appendChild(el("thead")).appendChild(head);
 
     const body = el("tbody");
-    const days = new Date(S.year, S.month + 1, 0).getDate();
     const today = new Date();
-    const isThisMonth = today.getFullYear() === S.year && today.getMonth() === S.month;
+    let todayIdx = -1;
 
-    for (let d = 1; d <= days; d++) {
-      const date = new Date(S.year, S.month, d);
+    periodDays().forEach(({ d, date }, idx) => {
       const tr = el("tr");
-      if (isThisMonth && d === today.getDate()) tr.className = "today";
-      tr.appendChild(el("td", "dt", pad(d) + "/" + pad(S.month + 1) + "/" + S.year));
+      if (sameDay(date, today)) { tr.className = "today"; todayIdx = idx; }
+      tr.appendChild(el("td", "dt", pad(d) + "/" + pad(date.getMonth() + 1) + "/" + date.getFullYear()));
       tr.appendChild(el("td", "dy" + (date.getDay() === 0 ? " sun" : ""), DAYS[date.getDay()]));
 
       const row = { day: d, tr, cells: [], noteTd: null, noteInput: null };
@@ -342,13 +375,13 @@ function createSchedule(cfg, afterEl) {
       tr.appendChild(nt);
       body.appendChild(tr);
       refs.push(row);
-    }
+    });
     table.appendChild(body);
     wrap.appendChild(table);
 
-    // buka langsung di baris hari ini kalau yang ditampilkan bulan berjalan
-    if (isThisMonth && !section.hidden) {
-      const t = refs[today.getDate() - 1].tr;
+    // buka langsung di baris hari ini kalau hari ini ada di periode yang ditampilkan
+    if (todayIdx >= 0 && !section.hidden) {
+      const t = refs[todayIdx].tr;
       wrap.scrollTop = Math.max(0, t.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - 90);
     }
   }
@@ -386,13 +419,13 @@ function createSchedule(cfg, afterEl) {
     S.names.forEach((n) => { const th = el("th", null, n); paintHead(th, S.colors[n]); head.appendChild(th); });
     table.appendChild(el("thead")).appendChild(head);
     const body = el("tbody");
-    const days = new Date(S.year, S.month + 1, 0).getDate();
+    const list = periodDays();
     SHIFTS.forEach((s) => {
       const tr = el("tr");
       tr.appendChild(el("td", "lab sh-" + cssSafe(s), s));
       S.names.forEach((name) => {
         let n = 0;
-        for (let d = 1; d <= days; d++) if (S.cells[d] && S.cells[d][name] === s) n++;
+        list.forEach(({ d }) => { if (S.cells[d] && S.cells[d][name] === s) n++; });
         tr.appendChild(el("td", null, String(n)));
       });
       body.appendChild(tr);
@@ -569,16 +602,20 @@ function createSchedule(cfg, afterEl) {
   // hitung sel yang akan diisi (tanpa menulis apa pun)
   function planPattern() {
     const n = pat.pattern.length;
-    const days = new Date(S.year, S.month + 1, 0).getDate();
+    const list = periodDays();
     const from = parseInt(q(".j-from").value, 10), to = parseInt(q(".j-to").value, 10);
-    if (!(from >= 1 && to <= days && from <= to)) return { error: "Rentang tanggal tidak valid. Isi antara 1 dan " + days + ", dan \"dari\" tidak boleh lebih besar dari \"sampai\"." };
+    const iFrom = list.findIndex((x) => x.d === from), iTo = list.findIndex((x) => x.d === to);
+    if (iFrom < 0 || iTo < 0 || iFrom > iTo) {
+      return { error: "Rentang tanggal tidak valid. Isi tanggal yang ada di periode ini (" + periodText() + "), urutannya dari awal ke akhir." };
+    }
     const overwrite = q(".j-over").checked;
     const updates = {}; let count = 0; const who = new Set();
     S.names.forEach((name, i) => {
       const off = effOffset(name, i);
       if (!off) return;
-      for (let d = from; d <= to; d++) {
-        const v = pat.pattern[(off - 1 + (d - from)) % n];
+      for (let k = iFrom; k <= iTo; k++) {
+        const d = list[k].d;
+        const v = pat.pattern[(off - 1 + (k - iFrom)) % n];
         const cur = (S.cells[d] && S.cells[d][name]) || "";
         if (cur === v) continue;
         if (!overwrite && (cur || !v)) continue;    // tanpa timpa: hanya isi sel kosong dengan shift
@@ -598,9 +635,14 @@ function createSchedule(cfg, afterEl) {
   }
 
   q(".j-pattern").addEventListener("click", () => {
-    const days = new Date(S.year, S.month + 1, 0).getDate();
-    q(".j-from").max = q(".j-to").max = String(days);
-    q(".j-from").value = "1"; q(".j-to").value = String(days);
+    const list = periodDays();
+    q(".j-from").max = q(".j-to").max = "31";
+    q(".j-from").value = String(list[0].d);
+    q(".j-to").value = String(list[list.length - 1].d);
+    q(".j-range-note").textContent = cfg.cutoff
+      ? "Periode ini " + periodText() + ". Isi tanggal sesuai periode, misalnya " + list[0].d + " sampai " + list[list.length - 1].d + "."
+      : "";
+    q(".j-range-note").hidden = !cfg.cutoff;
     q(".j-over").checked = false;
     renderPattern();
     if (typeof pdlg.showModal === "function") pdlg.showModal();
@@ -634,7 +676,7 @@ function createSchedule(cfg, afterEl) {
     }
   });
 
-  /* --- langganan data bulan yang dipilih --- */
+  /* --- langganan data periode yang dipilih --- */
   function subscribe() {
     if (S.unsub) { S.unsub(); S.unsub = null; }
     if (!db) return;
