@@ -13,6 +13,7 @@
      Teknisi  : id "teknisi-YYYY-MM"    (contoh "teknisi-2026-11")
    Isi dokumen:
      names : ["SATRIA", "MAISTRO", ...]        (urutan kolom)
+     colors: { "SATRIA": "#E11D48", ... }      (warna judul kolom nama, opsional)
      cells : { "1": { "SATRIA": "PAGI", ... }, "2": {...} }   (kunci = tanggal)
      notes : { "3": "haris jam 1 siang", ... }
 
@@ -30,7 +31,11 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 
 /* ---------- Pengaturan yang boleh diubah ---------- */
 const COLLECTION = "schedules";
-const SHIFTS = ["PAGI", "MIDDLE", "SORE", "MALAM", "IJIN", "CUTI"];   // isi dropdown (sama untuk semua jadwal)
+const SHIFTS = ["PAGI", "MIDDLE", "SORE", "MALAM", "LIBUR", "IJIN", "CUTI"];   // isi dropdown (sama untuk semua jadwal)
+// pola rotasi bawaan untuk "Isi pola otomatis" (sama seperti jadwal helpdesk: 7 hari berulang)
+const DEFAULT_PATTERN = ["PAGI", "PAGI", "SORE", "SORE", "MALAM", "LIBUR", "LIBUR"];
+const DEFAULT_HEAD = "#376A58";          // warna judul kolom nama kalau belum diberi warna
+const HEX = /^#[0-9a-fA-F]{6}$/;
 const MAX_NAMES = 12;
 
 // Daftar jadwal. Urutan = urutan menu di navbar. Untuk menambah jadwal lain, cukup tambah satu baris di sini.
@@ -46,7 +51,7 @@ const SCHEDULES = [
     names: ["FAJAR", "UDIN"] }
 ];
 
-// warna tiap shift: [warna isi, warna huruf]. LIBUR disiapkan kalau nanti ditambahkan ke SHIFTS.
+// warna tiap shift: [warna isi, warna huruf]
 const SHIFT_STYLE = {
   PAGI:   ["#BDE0F5", "#1F5FA8"],
   MIDDLE: ["#E3D4F7", "#5B2E91"],
@@ -68,6 +73,15 @@ function el(tag, cls, text) {
   return n;
 }
 const cssSafe = (v) => String(v).replace(/[^A-Za-z0-9_-]/g, "");
+// warna huruf yang terbaca di atas warna latar (putih atau gelap)
+function inkFor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const lum = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.62 ? "#1B2436" : "#FFFFFF";
+}
+function paintHead(th, color) {
+  if (color && HEX.test(color)) { th.style.background = color; th.style.color = inkFor(color); }
+}
 const writeMsg = (e) => (e && e.code === "permission-denied")
   ? "Tidak punya izin mengubah jadwal. Pastikan email kamu terdaftar di Rules Firestore untuk koleksi \"schedules\"."
   : "Gagal menyimpan: " + ((e && e.message) || e);
@@ -81,8 +95,6 @@ style.textContent = Object.entries(SHIFT_STYLE).map(([k, [bg, fg]]) => `.sh-${k}
   .jadwal-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px 16px;margin-bottom:12px}
   .jadwal-bar .field{min-width:150px}
   .jadwal-bar select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text)}
-  .jadwal-legend{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto;align-self:center}
-  .jadwal-legend span{padding:3px 10px;border-radius:6px;font-size:.78rem;font-weight:700}
   .jadwal-mode{margin:0 0 12px;font-size:.9rem;color:var(--muted)}
   .jadwal-status{margin:0 0 12px;font-weight:600;color:var(--muted)}
   .jadwal-status:empty{display:none}
@@ -110,12 +122,25 @@ style.textContent = Object.entries(SHIFT_STYLE).map(([k, [bg, fg]]) => `.sh-${k}
   .rekap th,.rekap td{padding:8px 14px;border:1px solid var(--line);text-align:center;font-size:.85rem}
   .rekap th{background:#376A58;color:#fff}
   .rekap td.lab{font-weight:700}
-  .j-dialog{border:0;border-radius:var(--radius);padding:22px;width:min(480px,calc(100vw - 24px))}
+  .j-dialog{border:0;border-radius:var(--radius);padding:22px;width:min(640px,calc(100vw - 24px))}
   .j-dialog::backdrop{background:rgba(10,18,36,.6)}
   .j-dialog form{display:grid;gap:14px}
   .j-dialog h2{margin:0;font-size:1.15rem;color:var(--ink)}
+  .j-dialog .note{margin:0;font-size:.85rem;color:var(--muted)}
+  .j-dialog input[type=text],.j-dialog input[type=number],.j-dialog select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);min-width:0}
+  .j-nrow{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto auto;gap:6px;align-items:center;margin-bottom:8px}
+  .j-nrow input[type=color]{width:42px;height:36px;padding:2px;border:1px solid var(--line);border-radius:8px;background:var(--surface);cursor:pointer}
+  .j-nrow input[type=color].is-default{opacity:.4}
+  .j-steps{display:flex;flex-wrap:wrap;gap:8px}
+  .j-step{display:grid;gap:2px;font-size:.72rem;font-weight:700;color:var(--muted);text-align:center}
+  .j-step select{font-weight:700;text-align:center;padding:6px 4px}
+  .j-prow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:6px}
+  .j-prow label{display:flex;align-items:center;gap:8px;font-weight:700}
+  .j-range{display:flex;flex-wrap:wrap;gap:12px}
+  .j-range .field{min-width:120px}
+  .j-p-sum{margin:0;font-size:.88rem;font-weight:600;color:var(--muted)}
+  .j-p-sum.err{color:var(--no)}
   @media (max-width:760px){
-    .jadwal-legend{margin-left:0;width:100%}
     .nav-links{overflow-x:auto;scrollbar-width:none;min-width:0}
     .nav-links::-webkit-scrollbar{display:none}
     .nav-links a{flex:none;white-space:nowrap}
@@ -153,8 +178,8 @@ function createSchedule(cfg, afterEl) {
     <div class="jadwal-bar">
       <div class="field"><label for="${uid}-month">Bulan</label><select id="${uid}-month" class="j-month"></select></div>
       <div class="field"><label for="${uid}-year">Tahun</label><select id="${uid}-year" class="j-year"></select></div>
-      <button type="button" class="btn sm j-names" hidden></button>
-      <div class="jadwal-legend j-legend" aria-label="Keterangan warna shift"></div>
+      <button type="button" class="btn sm j-names" hidden>Atur nama &amp; warna</button>
+      <button type="button" class="btn sm j-pattern" hidden>Isi pola otomatis</button>
     </div>
     <p class="jadwal-mode j-mode"></p>
     <p class="jadwal-status j-status" role="status"></p>
@@ -163,18 +188,45 @@ function createSchedule(cfg, afterEl) {
       <h2 class="section-title">Rekap bulan ini</h2>
       <div class="rekap-wrap j-rekap"></div>
     </div>
-    <dialog class="editor j-dialog" aria-labelledby="${uid}-dlg-title">
-      <form class="j-form" novalidate>
-        <h2 id="${uid}-dlg-title"></h2>
-        <div class="field">
-          <label for="${uid}-names-text">Satu nama per baris (urutan baris = urutan kolom)</label>
-          <textarea id="${uid}-names-text" class="j-names-text" rows="9"></textarea>
-          <p class="note">Berlaku untuk bulan yang sedang ditampilkan. Maksimal ${MAX_NAMES} nama.</p>
-        </div>
-        <p class="form-error j-dlg-err" role="alert"></p>
+    <dialog class="editor j-dialog j-ndialog" aria-labelledby="${uid}-ndlg-title">
+      <form class="j-nform" novalidate>
+        <h2 id="${uid}-ndlg-title"></h2>
+        <p class="note">Urutan baris = urutan kolom. Warna dipakai untuk judul kolom nama, tombol "Bawaan" mengembalikannya ke hijau. Kalau sebuah nama diganti, jadwal yang sudah terisi atas nama lama tidak ikut pindah.</p>
+        <div class="j-nlist"></div>
+        <div class="actions"><button type="button" class="btn sm j-nadd">+ Tambah nama</button></div>
+        <p class="form-error j-n-err" role="alert"></p>
         <div class="actions">
-          <button type="submit" class="btn solid j-dlg-save">Simpan</button>
-          <button type="button" class="btn j-dlg-cancel">Batal</button>
+          <button type="submit" class="btn solid j-n-save">Simpan</button>
+          <button type="button" class="btn j-n-cancel">Batal</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog class="editor j-dialog j-pdialog" aria-labelledby="${uid}-pdlg-title">
+      <form class="j-pform" novalidate>
+        <h2 id="${uid}-pdlg-title">Isi pola otomatis</h2>
+        <p class="note">Pola diulang terus dari tanggal mulai. Tiap orang bisa mulai dari urutan yang berbeda (bawaannya mundur satu urutan per orang, seperti jadwal helpdesk).</p>
+        <div class="field">
+          <label>Pola (urutan yang berulang)</label>
+          <div class="j-steps"></div>
+          <div class="actions" style="margin-top:8px">
+            <button type="button" class="btn sm j-step-add">+ Tambah urutan</button>
+            <button type="button" class="btn sm j-step-del">− Kurangi</button>
+            <button type="button" class="btn sm j-step-reset">Pola bawaan</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Siapa yang diisi, dan mulai dari urutan ke berapa</label>
+          <div class="j-people"></div>
+        </div>
+        <div class="j-range">
+          <div class="field"><label for="${uid}-from">Dari tanggal</label><input id="${uid}-from" class="j-from" type="number" min="1" step="1"></div>
+          <div class="field"><label for="${uid}-to">Sampai tanggal</label><input id="${uid}-to" class="j-to" type="number" min="1" step="1"></div>
+        </div>
+        <label class="check"><input type="checkbox" class="j-over"> Timpa sel yang sudah terisi</label>
+        <p class="j-p-sum" role="status"></p>
+        <div class="actions">
+          <button type="submit" class="btn solid j-p-save">Isi jadwal</button>
+          <button type="button" class="btn j-p-cancel">Batal</button>
         </div>
       </form>
     </dialog>`;
@@ -183,27 +235,25 @@ function createSchedule(cfg, afterEl) {
 
   q("h1").textContent = cfg.label;
   q(".j-desc").textContent = cfg.desc;
-  q(".j-names").textContent = "Atur nama " + cfg.who;
-  q(".j-dialog h2").textContent = "Atur nama " + cfg.who;
+  q(".j-ndialog h2").textContent = "Atur nama & warna " + cfg.who;
 
   /* --- state --- */
   const now = new Date();
   const S = {
     year: now.getFullYear(), month: now.getMonth(),
-    names: cfg.names.slice(), cells: {}, notes: {},
+    names: cfg.names.slice(), colors: {}, cells: {}, notes: {},
     status: "loading",          // loading | ok | denied | error | nofb
     hasDoc: false, edit: false, sig: "", ref: null, unsub: null
   };
   let refs = [];                // referensi elemen tiap baris tanggal
 
-  /* --- dropdown bulan / tahun / legenda --- */
+  /* --- dropdown bulan / tahun --- */
   MONTHS.forEach((m, i) => { const o = el("option", null, m); o.value = String(i); q(".j-month").appendChild(o); });
   for (let y = now.getFullYear() - 1; y <= now.getFullYear() + 2; y++) {
     const o = el("option", null, String(y)); o.value = String(y); q(".j-year").appendChild(o);
   }
   q(".j-month").value = String(S.month);
   q(".j-year").value = String(S.year);
-  SHIFTS.forEach((s) => q(".j-legend").appendChild(el("span", "sh-" + cssSafe(s), s)));
   q(".j-month").addEventListener("change", (e) => { S.month = parseInt(e.target.value, 10); subscribe(); });
   q(".j-year").addEventListener("change", (e) => { S.year = parseInt(e.target.value, 10); subscribe(); });
 
@@ -218,6 +268,7 @@ function createSchedule(cfg, afterEl) {
   function render() {
     const ok = S.status === "ok";
     q(".j-names").hidden = !(S.edit && ok);
+    q(".j-pattern").hidden = !(S.edit && ok);
     q(".j-mode").textContent = !ok ? "" : S.edit
       ? "Mode edit: pilih shift langsung di tabel, perubahan tersimpan otomatis."
       : "Hanya lihat. Untuk mengubah jadwal, masuk lewat menu Admin.";
@@ -232,7 +283,7 @@ function createSchedule(cfg, afterEl) {
     q(".j-rekap-box").hidden = !ok;
     if (!ok) return;
 
-    const sig = [S.year, S.month, S.names.join("|"), S.edit].join("#");
+    const sig = [S.year, S.month, S.names.join("|"), S.edit, JSON.stringify(S.colors)].join("#");
     if (sig !== S.sig) { S.sig = sig; buildTable(); }
     sync();
   }
@@ -245,7 +296,9 @@ function createSchedule(cfg, afterEl) {
     const table = el("table", "jadwal");
     table.setAttribute("aria-label", cfg.label + " " + MONTHS[S.month] + " " + S.year);
     const head = el("tr");
-    ["TANGGAL", "HARI", ...S.names, "KETERANGAN"].forEach((h) => head.appendChild(el("th", null, h)));
+    ["TANGGAL", "HARI"].forEach((h) => head.appendChild(el("th", null, h)));
+    S.names.forEach((n) => { const th = el("th", null, n); paintHead(th, S.colors[n]); head.appendChild(th); });
+    head.appendChild(el("th", null, "KETERANGAN"));
     table.appendChild(el("thead")).appendChild(head);
 
     const body = el("tbody");
@@ -330,7 +383,7 @@ function createSchedule(cfg, afterEl) {
     table.setAttribute("aria-label", "Rekap jumlah shift per orang");
     const head = el("tr");
     head.appendChild(el("th", null, "SHIFT"));
-    S.names.forEach((n) => head.appendChild(el("th", null, n)));
+    S.names.forEach((n) => { const th = el("th", null, n); paintHead(th, S.colors[n]); head.appendChild(th); });
     table.appendChild(el("thead")).appendChild(head);
     const body = el("tbody");
     const days = new Date(S.year, S.month + 1, 0).getDate();
@@ -371,32 +424,213 @@ function createSchedule(cfg, afterEl) {
     }
   }
 
-  /* --- atur nama --- */
-  const dlg = q(".j-dialog");
+  /* --- atur nama & warna --- */
+  const ndlg = q(".j-ndialog");
+  let nrows = [];
+  function collectRows() {
+    nrows = [...q(".j-nlist").children].map((r) => {
+      const c = r.querySelector(".j-ncolor");
+      return { name: r.querySelector(".j-nname").value, color: c.dataset.set === "1" ? c.value : null };
+    });
+  }
+  function renderRows() {
+    const list = q(".j-nlist");
+    list.innerHTML = "";
+    nrows.forEach((r, i) => {
+      const row = el("div", "j-nrow");
+      const up = el("button", "btn sm", "▲"); up.type = "button"; up.disabled = i === 0;
+      up.setAttribute("aria-label", "Naikkan nama " + (i + 1));
+      up.addEventListener("click", () => { collectRows(); [nrows[i - 1], nrows[i]] = [nrows[i], nrows[i - 1]]; renderRows(); });
+      const down = el("button", "btn sm", "▼"); down.type = "button"; down.disabled = i === nrows.length - 1;
+      down.setAttribute("aria-label", "Turunkan nama " + (i + 1));
+      down.addEventListener("click", () => { collectRows(); [nrows[i + 1], nrows[i]] = [nrows[i], nrows[i + 1]]; renderRows(); });
+      const name = el("input", "j-nname");
+      name.type = "text"; name.maxLength = 30; name.value = r.name; name.placeholder = "Nama";
+      name.setAttribute("aria-label", "Nama " + (i + 1));
+      const color = el("input", "j-ncolor");
+      color.type = "color"; color.value = r.color || DEFAULT_HEAD;
+      color.dataset.set = r.color ? "1" : "0";
+      color.classList.toggle("is-default", !r.color);
+      color.setAttribute("aria-label", "Warna nama " + (i + 1));
+      color.addEventListener("input", () => { color.dataset.set = "1"; color.classList.remove("is-default"); });
+      const reset = el("button", "btn sm", "Bawaan"); reset.type = "button";
+      reset.addEventListener("click", () => { collectRows(); nrows[i].color = null; renderRows(); });
+      const del = el("button", "btn sm danger", "Hapus"); del.type = "button";
+      del.setAttribute("aria-label", "Hapus nama " + (i + 1));
+      del.addEventListener("click", () => { collectRows(); nrows.splice(i, 1); renderRows(); });
+      row.append(up, down, name, color, reset, del);
+      list.appendChild(row);
+    });
+  }
   q(".j-names").addEventListener("click", () => {
-    q(".j-names-text").value = S.names.join("\n");
-    q(".j-dlg-err").textContent = "";
-    if (typeof dlg.showModal === "function") dlg.showModal();
-    q(".j-names-text").focus();
+    nrows = S.names.map((n) => ({ name: n, color: S.colors[n] || null }));
+    renderRows();
+    q(".j-n-err").textContent = "";
+    if (typeof ndlg.showModal === "function") ndlg.showModal();
   });
-  q(".j-dlg-cancel").addEventListener("click", () => dlg.close());
-  q(".j-form").addEventListener("submit", async (e) => {
+  q(".j-nadd").addEventListener("click", () => {
+    collectRows();
+    if (nrows.length >= MAX_NAMES) { q(".j-n-err").textContent = "Maksimal " + MAX_NAMES + " nama."; return; }
+    q(".j-n-err").textContent = "";
+    nrows.push({ name: "", color: null });
+    renderRows();
+    const ins = q(".j-nlist").querySelectorAll(".j-nname");
+    ins[ins.length - 1].focus();
+  });
+  q(".j-n-cancel").addEventListener("click", () => ndlg.close());
+  q(".j-nform").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const err = q(".j-dlg-err");
-    const names = [...new Set(q(".j-names-text").value.split("\n")
-      .map((x) => x.trim().toUpperCase().replace(/[.\/\[\]*~`]/g, "").trim())
-      .filter(Boolean))];
+    collectRows();
+    const err = q(".j-n-err");
+    const names = [], colors = {};
+    nrows.forEach((r) => {
+      const name = r.name.trim().toUpperCase().replace(/[.\/\[\]*~`]/g, "").trim();
+      if (!name || names.includes(name)) return;
+      names.push(name);
+      if (r.color && HEX.test(r.color)) colors[name] = r.color.toUpperCase();
+    });
     if (!names.length) { err.textContent = "Isi minimal satu nama."; return; }
     if (names.length > MAX_NAMES) { err.textContent = "Maksimal " + MAX_NAMES + " nama."; return; }
-    const btn = q(".j-dlg-save");
+    const btn = q(".j-n-save");
     btn.disabled = true; btn.textContent = "Menyimpan...";
     try {
-      await setDoc(S.ref, { names }, { merge: true });
-      dlg.close();
+      await setDoc(S.ref, { names, colors }, { merge: true, mergeFields: ["names", "colors"] });
+      ndlg.close();
     } catch (x) {
       err.textContent = writeMsg(x);
     } finally {
       btn.disabled = false; btn.textContent = "Simpan";
+    }
+  });
+
+  /* --- isi pola otomatis --- */
+  const pdlg = q(".j-pdialog");
+  const PKEY = "upaznet-pola-" + cfg.key;           // pola terakhir diingat di browser admin
+  const pat = { pattern: DEFAULT_PATTERN.slice(), offsets: {} };
+  try {
+    const sv = JSON.parse(localStorage.getItem(PKEY));
+    if (sv && Array.isArray(sv.pattern) && sv.pattern.length >= 2 && sv.pattern.length <= 14 && sv.pattern.every((v) => typeof v === "string")) {
+      pat.pattern = sv.pattern;
+      if (sv.offsets && typeof sv.offsets === "object") pat.offsets = sv.offsets;
+    }
+  } catch (_) {}
+  const savePat = () => { try { localStorage.setItem(PKEY, JSON.stringify(pat)); } catch (_) {} };
+  // bawaan: tiap orang mundur satu urutan dari orang sebelumnya
+  const defOffset = (i, n) => ((((0 - i) % n) + n) % n) + 1;
+  function effOffset(name, i) {
+    const n = pat.pattern.length, v = pat.offsets[name];
+    if (v === undefined) return defOffset(i, n);
+    return v === 0 ? 0 : ((v - 1) % n) + 1;           // 0 = tidak diisi
+  }
+  const shiftOptions = (sel, withBlank) => {
+    if (withBlank) { const b = el("option", null, "—"); b.value = ""; sel.appendChild(b); }
+    SHIFTS.forEach((x) => { const o = el("option", null, x); o.value = x; sel.appendChild(o); });
+  };
+
+  function renderPattern() {
+    const n = pat.pattern.length;
+    const steps = q(".j-steps");
+    steps.innerHTML = "";
+    pat.pattern.forEach((v, i) => {
+      const box = el("label", "j-step");
+      box.appendChild(el("span", null, String(i + 1)));
+      const sel = el("select");
+      sel.setAttribute("aria-label", "Urutan ke-" + (i + 1));
+      shiftOptions(sel, true);
+      if (v && !SHIFTS.includes(v)) { const o = el("option", null, v); o.value = v; sel.appendChild(o); }
+      sel.value = v;
+      sel.className = v ? "sh-" + cssSafe(v) : "";
+      sel.addEventListener("change", () => { pat.pattern[i] = sel.value; sel.className = sel.value ? "sh-" + cssSafe(sel.value) : ""; summary(); });
+      box.appendChild(sel);
+      steps.appendChild(box);
+    });
+    const people = q(".j-people");
+    people.innerHTML = "";
+    S.names.forEach((name, i) => {
+      const off = effOffset(name, i);
+      const row = el("div", "j-prow");
+      const lab = el("label");
+      const cb = el("input"); cb.type = "checkbox"; cb.checked = off !== 0;
+      lab.append(cb, document.createTextNode(name));
+      const note = el("span", "note", "mulai dari urutan ke-");
+      const sel = el("select");
+      sel.setAttribute("aria-label", "Mulai dari urutan untuk " + name);
+      for (let k = 1; k <= n; k++) { const o = el("option", null, String(k)); o.value = String(k); sel.appendChild(o); }
+      sel.value = String(off || defOffset(i, n));
+      sel.disabled = off === 0;
+      cb.addEventListener("change", () => { pat.offsets[name] = cb.checked ? Number(sel.value) : 0; sel.disabled = !cb.checked; summary(); });
+      sel.addEventListener("change", () => { pat.offsets[name] = Number(sel.value); summary(); });
+      row.append(lab, note, sel);
+      people.appendChild(row);
+    });
+    summary();
+  }
+
+  // hitung sel yang akan diisi (tanpa menulis apa pun)
+  function planPattern() {
+    const n = pat.pattern.length;
+    const days = new Date(S.year, S.month + 1, 0).getDate();
+    const from = parseInt(q(".j-from").value, 10), to = parseInt(q(".j-to").value, 10);
+    if (!(from >= 1 && to <= days && from <= to)) return { error: "Rentang tanggal tidak valid. Isi antara 1 dan " + days + ", dan \"dari\" tidak boleh lebih besar dari \"sampai\"." };
+    const overwrite = q(".j-over").checked;
+    const updates = {}; let count = 0; const who = new Set();
+    S.names.forEach((name, i) => {
+      const off = effOffset(name, i);
+      if (!off) return;
+      for (let d = from; d <= to; d++) {
+        const v = pat.pattern[(off - 1 + (d - from)) % n];
+        const cur = (S.cells[d] && S.cells[d][name]) || "";
+        if (cur === v) continue;
+        if (!overwrite && (cur || !v)) continue;    // tanpa timpa: hanya isi sel kosong dengan shift
+        (updates[d] = updates[d] || {})[name] = v;
+        count++; who.add(name);
+      }
+    });
+    return { updates, count, people: who.size };
+  }
+  function summary() {
+    const box = q(".j-p-sum");
+    const pl = planPattern();
+    box.className = "j-p-sum" + (pl.error ? " err" : "");
+    box.textContent = pl.error ? pl.error
+      : pl.count ? "Akan mengisi " + pl.count + " sel untuk " + pl.people + " orang."
+      : "Tidak ada sel yang perlu diisi. Centang \"Timpa sel yang sudah terisi\" kalau ingin mengganti isi yang ada.";
+  }
+
+  q(".j-pattern").addEventListener("click", () => {
+    const days = new Date(S.year, S.month + 1, 0).getDate();
+    q(".j-from").max = q(".j-to").max = String(days);
+    q(".j-from").value = "1"; q(".j-to").value = String(days);
+    q(".j-over").checked = false;
+    renderPattern();
+    if (typeof pdlg.showModal === "function") pdlg.showModal();
+  });
+  q(".j-step-add").addEventListener("click", () => { if (pat.pattern.length < 14) { pat.pattern.push(""); renderPattern(); } });
+  q(".j-step-del").addEventListener("click", () => { if (pat.pattern.length > 2) { pat.pattern.pop(); renderPattern(); } });
+  q(".j-step-reset").addEventListener("click", () => { pat.pattern = DEFAULT_PATTERN.slice(); pat.offsets = {}; renderPattern(); });
+  q(".j-from").addEventListener("input", summary);
+  q(".j-to").addEventListener("input", summary);
+  q(".j-over").addEventListener("change", summary);
+  q(".j-p-cancel").addEventListener("click", () => pdlg.close());
+  q(".j-pform").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pl = planPattern();
+    if (pl.error || !pl.count) { summary(); return; }
+    const btn = q(".j-p-save");
+    btn.disabled = true; btn.textContent = "Mengisi...";
+    const ref = S.ref;
+    Object.entries(pl.updates).forEach(([d, row]) => { S.cells[d] = Object.assign(S.cells[d] || {}, row); });
+    sync();                                                   // tampilkan dulu, simpan menyusul (satu kali tulis)
+    try {
+      await setDoc(ref, { cells: pl.updates }, { merge: true });
+      savePat();
+      pdlg.close();
+    } catch (x) {
+      q(".j-p-sum").className = "j-p-sum err";
+      q(".j-p-sum").textContent = writeMsg(x);
+      subscribe();
+    } finally {
+      btn.disabled = false; btn.textContent = "Isi jadwal";
     }
   });
 
@@ -414,6 +648,8 @@ function createSchedule(cfg, afterEl) {
         ? [...new Set(d.names.filter((x) => typeof x === "string").map((x) => x.trim()).filter(Boolean))].slice(0, MAX_NAMES)
         : [];
       S.names = names.length ? names : cfg.names.slice();
+      S.colors = {};
+      if (d.colors && typeof d.colors === "object") Object.entries(d.colors).forEach(([k, v]) => { if (typeof v === "string" && HEX.test(v)) S.colors[k] = v; });
       S.cells = d.cells && typeof d.cells === "object" ? d.cells : {};
       S.notes = d.notes && typeof d.notes === "object" ? d.notes : {};
       S.status = "ok";
